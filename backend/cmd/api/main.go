@@ -19,9 +19,7 @@ func main() {
 
 	mux.HandleFunc("GET /health", healthHandler)
 
-	err := http.ListenAndServe(":8080", mux)
-
-	if err != nil {
+	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatal(err)
 	}
 }
