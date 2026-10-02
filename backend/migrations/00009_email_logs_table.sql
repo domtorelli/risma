@@ -10,7 +10,7 @@ CREATE TABLE email_logs (
     subject TEXT NOT NULL,
     body TEXT NOT NULL,
     sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    status email_status NOT NULL,
+    status email_status NOT NULL
 );
 
 
