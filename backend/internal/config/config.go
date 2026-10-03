@@ -29,7 +29,7 @@ func requireEnv(key string) (string, error) {
 	value, ok := os.LookupEnv(key)
 
 	if !ok || value == "" {
-		return "", fmt.Errorf("loading config: missing required env variable %s", key)
+		return "", fmt.Errorf("missing required env variable %s", key)
 	}
 
 	return value, nil
