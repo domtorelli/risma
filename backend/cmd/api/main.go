@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"github.com/matteotorelli/risma/backend/internal/config"
 )
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -15,11 +17,16 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Error loading config: %v", err)
+	}
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", healthHandler)
 
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	if err := http.ListenAndServe(":"+cfg.HTTPPort, mux); err != nil {
 		log.Fatal(err)
 	}
 }
