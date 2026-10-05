@@ -15,6 +15,7 @@ import (
 	"github.com/matteotorelli/risma/backend/internal/database"
 	"github.com/matteotorelli/risma/backend/internal/httpx"
 	"github.com/matteotorelli/risma/backend/internal/mail"
+	"github.com/matteotorelli/risma/backend/internal/product"
 	"github.com/matteotorelli/risma/backend/internal/role"
 	"github.com/matteotorelli/risma/backend/internal/user"
 )
@@ -56,6 +57,7 @@ func main() {
 
 	roleSvc := role.NewService(role.NewRepository(db))
 	userSvc := user.NewService(userRepo, roleSvc, authSvc)
+	productSvc := product.NewService(product.NewRepository(db), userRepo, mailSvc, logger)
 
 	requireAuth := authMW.RequireAuth
 	requireAdmin := func(next http.Handler) http.Handler {
@@ -71,6 +73,7 @@ func main() {
 	auth.NewHandler(authSvc, logger, cfg.TrustedProxies).RegisterRoutes(mux, authMW)
 	role.NewHandler(roleSvc, logger).RegisterRoutes(mux, requireAuth)
 	user.NewHandler(userSvc, logger).RegisterRoutes(mux, requireAuth, requireAdmin)
+	product.NewHandler(productSvc, logger).RegisterRoutes(mux, requireAuth)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,
