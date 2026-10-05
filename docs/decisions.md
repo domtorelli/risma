@@ -67,6 +67,29 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 - **Controllo del ruolo nel service, oltre che sulla rotta**: `ChangeRole` e `Create` ricevono il ruolo di chi agisce e applicano la regola anche se la rotta è già protetta dal middleware, così la regola non dipende da come il service viene chiamato ed è coperta dai test.
 - **Il ruolo si cambia solo con un'operazione dedicata**: la modifica dei dati utente non tocca `role_id`, quindi il controllo Admin sta in un punto solo.
 - **Password del primo admin letta da stdin** dal comando `cmd/seed`: non compare nei flag, nella cronologia della shell né tra le variabili d'ambiente.
+- **Access token di 15 minuti, refresh token di 7 giorni**: la revoca e il cambio di ruolo hanno effetto al più entro 15 minuti, e una settimana di sessione è comoda per un gestionale.
+- **JWT firmati HS256, verificati accettando solo HS256**, con emittente e scadenza obbligatori: un token con `"alg": "none"` o un altro algoritmo viene rifiutato. `JWT_SECRET` è obbligatoria e lunga almeno 32 byte, altrimenti il backend non parte.
+- **Refresh token opaco e casuale** (128 bit da `crypto/rand`), non un JWT: ha valore solo se il suo hash è nel database. **Ruota a ogni rinnovo**: il vecchio viene revocato e il nuovo inserito in una sola istruzione SQL, quindi due rinnovi concorrenti dello stesso token non producono due sessioni.
+- **Il rinnovo controlla che l'utente sia ancora attivo e non disattivato**: bloccare o disattivare un utente chiude le sue sessioni al più alla scadenza dell'access token, senza revoche esplicite.
+- **Cookie sempre `Secure`, anche in sviluppo**: i browser considerano sicuro `localhost` e in Docker si passa da HTTPS, quindi non serve un'opzione per disattivarlo (sarebbe un errore di configurazione in attesa di accadere). Il cookie del refresh token ha `Path=/api/auth`, così il browser lo invia solo a rinnovo e logout.
+- **Blocco dopo 5 tentativi falliti consecutivi**: un accesso riuscito azzera il contatore. Il tentativo fallito, l'aggiornamento del contatore e il blocco avvengono in una sola istruzione SQL, quindi il log e lo stato dell'utente non possono divergere.
+- **Su un account bloccato la password non viene verificata**: se lo fosse, una risposta diversa per la password giusta permetterebbe di continuare a indovinarla nonostante il blocco. Il tentativo viene comunque registrato.
+- **Messaggio esplicito per l'account bloccato**: l'utente capisce cosa fare (recupero password). Rivela che lo username esiste, ma solo dopo 5 tentativi su quell'account.
+- **Sblocco solo con il recupero password**: nessuna API di sblocco manuale.
+- **Al login si controlla solo la presenza di username e password**: un utente nasce solo con una password conforme alle regole AGID, quindi una password non conforme è semplicemente errata e conta come tentativo fallito. Il frontend non applica le regole AGID al login.
+- **Username inesistente: confronto bcrypt con un hash fittizio**, così il tempo di risposta non rivela quali username esistono.
+- **Il logout revoca solo la sessione corrente**: le altre sessioni dell'utente restano valide.
+- **IP del client da `X-Real-IP` solo se la connessione arriva da un proxy fidato** (`TRUSTED_PROXIES`, IP o reti CIDR); altrimenti si usa l'indirizzo della connessione. Un client che raggiunge il backend direttamente non può falsificare l'IP registrato in `access_logs`. Senza la variabile non ci si fida di nessun proxy.
+- **Recupero password richiesto con l'email**, il canale a cui arriva il link. La risposta è sempre la stessa, che l'email sia registrata o no, così non si scopre quali email esistono. Un utente bloccato può chiedere il recupero: è l'unico modo per sbloccarsi.
+- **Una nuova richiesta di recupero invalida i link precedenti** non ancora usati: resta valido solo l'ultimo inviato. I link precedenti vengono fatti scadere (`expires_at = now()`) invece di segnarli come usati, perché non lo sono stati.
+- **Il reset consuma il token, cambia la password, sblocca l'account e revoca tutti i refresh token dell'utente in una sola istruzione SQL**: chi conosceva la vecchia password perde subito la sessione (al più entro la scadenza dell'access token). Dopo il reset l'utente torna al login: solo il login apre sessioni.
+- **Email di recupero inviata in background**, dopo la risposta: il tempo di risposta non rivela se l'email esiste. Gli invii in corso sono contati e l'arresto ordinato del server li attende prima di chiudere il pool del database.
+- **Email in solo testo**: nessun HTML da proteggere. Corpo codificato quoted-printable e oggetto con la codifica MIME degli header, per le lettere accentate; un a capo nell'oggetto viene rifiutato (header injection).
+- **Valori segreti delle email dichiarati da chi compone il messaggio** (`mail.Message.Secrets`): il service delle email li sostituisce con `[oscurato]` nella copia salvata in `email_logs`, prima della scrittura. La regola sta in un punto solo e vale per ogni tipo di email.
+- **Invio SMTP con timeout e STARTTLS se offerto**; `smtp.PlainAuth` rifiuta di inviare credenziali su una connessione non cifrata (tranne verso localhost). Senza `SMTP_USERNAME` non ci si autentica, come con Mailpit.
+- **`APP_BASE_URL` obbligatoria**: serve per i link nelle email, e un valore predefinito sbagliato produrrebbe link non funzionanti.
+- **Una sola funzione per le nuove password** (`user.HashPassword`): verifica le regole AGID e calcola l'hash bcrypt, sia alla creazione dell'utente sia al reset.
+- **Messaggi di errore dell'API in italiano**, perché arrivano all'utente dell'interfaccia; gli errori interni di Go restano in inglese, come da convenzione. Gli errori 500 mostrano un messaggio generico e la causa va solo nei log.
 - **Corpo delle richieste JSON limitato a 1 MiB, campi sconosciuti rifiutati** (`httpx.DecodeJSON`): un errore di battitura nel client emerge subito invece di essere ignorato.
 - **Porte dei servizi Docker esposte solo su `127.0.0.1`**.
 - **`sslmode=disable` solo in sviluppo locale**.
@@ -79,7 +102,9 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 
 ## Limiti noti e possibili evoluzioni
 
-- **Invio email sincrono**, senza coda né nuovi tentativi in caso di errore. Evoluzione: stato `pending`, data di registrazione e processo separato per l'invio.
+- **Invio email in background nello stesso processo, senza coda né nuovi tentativi**: se il backend si arresta oltre il tempo di tolleranza o l'SMTP non risponde, l'email è persa (resta la riga `failed` in `email_logs`). Evoluzione: stato `pending`, coda nel database e processo separato per l'invio con nuovi tentativi.
+- **Il tempo di risposta del recupero password differisce di pochi millisecondi** tra email registrata e non registrata, per la scrittura del token nel database. Evoluzione: eseguire anche la scrittura in background.
+- **Il token di reset viaggia nel percorso dell'URL**: può finire nei log di accesso del reverse proxy. Va escluso dai log di nginx e la pagina deve usare `Referrer-Policy: no-referrer`.
 - **Nessun messaggio di errore in `email_logs`**: la causa del fallimento resta nei log del backend.
 - **Tentativi di accesso con username inesistenti non registrati**. Evoluzione: una migrazione che rende `user_id` facoltativo e aggiunge lo username tentato, per riconoscere chi prova a indovinare gli account.
 - **Immutabilità dei movimenti garantita dal backend, non dal database**. Evoluzione: trigger che blocca `UPDATE` e `DELETE` su `stock_movements`.
@@ -88,6 +113,9 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 - **Un Operatore può modificare o disattivare un Admin**: la scheda non lo vieta. Cambiando l'email di un Admin e chiedendo il recupero password, un Operatore potrebbe prenderne l'account. Evoluzione: impedire a un Operatore di agire su utenti Admin.
 - **Nessuna protezione dell'ultimo Admin**: un Admin può declassare o disattivare sé stesso o l'ultimo Admin rimasto. Evoluzione: rifiutare l'operazione se non resterebbe alcun Admin attivo.
 - **Password del seed visibile mentre si digita**: viene letta come una riga di stdin. Evoluzione: `golang.org/x/term` per disattivare l'eco.
+- **Chiunque conosca uno username può bloccarne l'account** con 5 tentativi errati: è una conseguenza del blocco richiesto dalla scheda. Evoluzione: limite di tentativi per IP prima del blocco per utente.
+- **Una password resa non conforme alle regole AGID modificando direttamente il database** non viene riconosciuta come tale al login.
+- **Un hash bcrypt corrotto nel database** viene trattato come password errata, senza un errore dedicato nei log.
 - **Totale e pagina dell'elenco utenti letti con due query separate**: con scritture concorrenti il totale può differire di poco dalle righe mostrate. Accettabile per una paginazione.
 - **Migrazioni non automatiche all'avvio**: è possibile avviare il backend su uno schema vecchio. Evoluzione: goose come libreria con i file incorporati (`go:embed`) e un lock per le istanze multiple.
 - **Nessuna pulizia dei refresh token scaduti**: la tabella cresce. Evoluzione: routine periodica di cancellazione.
