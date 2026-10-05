@@ -42,6 +42,21 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 - **In sviluppo Next.js inoltra `/api` al backend** (rewrite verso `BACKEND_URL`): browser, pagine e API restano sulla stessa origine, senza CORS. In Docker lo fa nginx.
 - **Test end-to-end con Playwright** (`npm run test:e2e`) sull'applicazione reale: accesso e permessi, inventario con carichi e scarichi, invito di un nuovo utente fino al primo accesso, rinnovo della sessione, logout. Il login dell'Admin avviene una volta sola e la sessione viene riusata, per non consumare i tentativi limitati per IP; i dati creati hanno nomi unici, quindi i test si possono ripetere.
 
+## Docker e HTTPS
+
+- **Un solo `docker compose up -d` porta all'applicazione funzionante su `https://localhost`**: servizi `db`, `mailpit`, `certs`, `migrate`, `backend`, `frontend`, `nginx`. Per sviluppare con `make run` e `npm run dev` bastano `docker compose up -d db mailpit`.
+- **nginx unico punto d'ingresso**, raggiungibile solo da questo computer (`127.0.0.1:80` e `:443`); backend e frontend non sono esposti, li raggiunge solo nginx nella rete interna. HTTP risponde con un reindirizzamento a HTTPS; TLS 1.2 e 1.3.
+- **Certificato autofirmato per `localhost`** generato da `nginx/generate-cert.sh` (openssl) con il servizio `certs`, solo se manca, in un volume Docker (`nginx_certs`): nessun file con la chiave privata nel progetto, nessun problema di permessi sui file creati da root, `openssl` non serve sul computer di chi clona. Il browser mostra un avviso la prima volta. Per rigenerarlo basta cancellare il volume.
+- **Migrazioni con un servizio dedicato** (`migrate`): goose, alla stessa versione usata in sviluppo, è incluso nell'immagine del backend; il backend parte solo se `goose up` termina con successo (`service_completed_successfully`). Il backend continua a non applicare le migrazioni da solo.
+- **Primo Admin con lo stesso comando seed dello sviluppo**, incluso nell'immagine: `docker compose run --rm backend seed …`. La password si scrive nel terminale.
+- **Immagini con build a più stadi**: si compila in un'immagine completa (Go, Node) e si esegue in un'immagine minima. Il backend gira su `distroless/static` (circa 37 MB, senza shell né gestore di pacchetti), il frontend sul server standalone di Next.js; entrambi con un utente senza privilegi.
+- **Versioni delle immagini fissate con tag e digest** (`immagine:tag@sha256:…`): il digest identifica l'immagine esatta, il tag resta per chi legge.
+- **IP fisso per nginx nella rete Docker** (`172.30.0.10`), indicato al backend in `TRUSTED_PROXIES`: il backend accetta `X-Real-IP` solo da nginx, che lo imposta sempre con l'indirizzo reale della connessione.
+- **Header di sicurezza in nginx** (decisione lasciata in sospeso e chiusa con l'infrastruttura): `Content-Security-Policy` (risorse solo dal sito stesso, nessun `<iframe>` di altri siti, nessun plugin), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy`, e `Strict-Transport-Security` tranne che per `localhost`: Chrome applicherebbe HSTS a tutte le porte di localhost, rendendo irraggiungibile il server di sviluppo in HTTP. `server_tokens off`: nginx non dichiara la sua versione.
+- **Token del link di reset oscurato nei log di accesso di nginx** (`/reset-password/[oscurato]`), con un formato di log dedicato.
+- **`stop_grace_period: 20s` per il backend**, oltre i 15 s dell'arresto ordinato. Verificato: il backend si ferma con codice 0 dopo il messaggio di arresto.
+- **I test end-to-end girano anche contro lo stack Docker** (`E2E_BASE_URL=https://localhost`), con HTTPS, CSP e cookie `__Host-` attivi.
+
 ## Configurazione
 
 - **Il backend legge solo variabili d'ambiente** (principio twelve-factor): in Docker le passa il compose, in sviluppo il Makefile carica il `.env` della radice prima di lanciare `go run`. Il codice è identico in tutti gli ambienti.
@@ -122,7 +137,7 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 - **La giacenza cambia solo con un movimento di carico o scarico**: il form del prodotto non ha la quantità (un campo `stock_quantity` nella modifica viene rifiutato). Ogni variazione ha tipo, autore e nota. La quantità iniziale indicata alla creazione è registrata come carico ("Carico iniziale").
 - **Prodotto e movimento nella stessa transazione** (`pgx.BeginFunc`): o vengono salvati entrambi o nessuno. Nel movimento l'`UPDATE` della giacenza blocca la riga fino al commit, quindi i movimenti concorrenti sullo stesso prodotto vengono applicati uno alla volta; il `CHECK (stock_quantity >= 0)` rifiuta lo scarico oltre la giacenza sul valore aggiornato, senza bisogno di un `SELECT ... FOR UPDATE` separato. Verificato con 20 scarichi concorrenti da 1 su una giacenza di 10: 10 riusciti, 10 rifiutati, giacenza 0.
 - **Avviso di scorta minima a ogni movimento che lascia la giacenza sotto la soglia** (e alla creazione di un prodotto già sotto soglia), a tutti gli Admin non disattivati. "Sotto" significa strettamente minore: con soglia 0 non parte mai. Modificare la soglia non invia avvisi. L'email parte in background dopo il commit: un errore di invio non annulla il movimento.
-- **Eliminazione logica anche con giacenza positiva**; i movimenti restano. I prodotti eliminati non si ripristinano: si può creare un nuovo prodotto con lo stesso nome (indice unico parziale).
+- **Un prodotto si elimina solo con giacenza zero** (scelta rivista: inizialmente l'eliminazione era permessa anche con giacenza positiva). Chi elimina deve prima registrare lo scarico della merce rimasta, così magazzino e storico dei movimenti restano coerenti. La condizione sta nell'`UPDATE` (`stock_quantity = 0`): la riga viene bloccata e la condizione ricontrollata sul valore più recente, quindi un carico concorrente impedisce l'eliminazione. Con giacenza positiva l'API risponde 409; l'interfaccia mostra il pulsante "Elimina" solo per i prodotti a zero. L'eliminazione è logica e i movimenti restano. I prodotti eliminati non si ripristinano: si può creare un nuovo prodotto con lo stesso nome (indice unico parziale).
 - **Prezzo come stringa decimale nel JSON** (`"12.50"`): letto con `price_per_unit::text` e validato con un'espressione regolare che rispecchia `NUMERIC(10, 2)`, senza passare da un `float64`.
 - **Ordinamento da un elenco chiuso**: `sort` (`name`, `price`, `quantity`) e `order` (`asc`, `desc`) sono validati dal service e tradotti in clausole SQL fisse; l'input dell'utente non entra mai nel testo della query. Un valore non previsto risponde 400.
 - **Dashboard in un solo endpoint** (`GET /api/dashboard`), visibile a tutti gli utenti autenticati: totale utenti non disattivati, totale prodotti non eliminati, valore dell'inventario (somma di giacenza × prezzo, stringa decimale come i prezzi), ultimi 5 movimenti e numero di prodotti per tipo.
@@ -146,7 +161,7 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 
 - **Invio email in background nello stesso processo, senza coda né nuovi tentativi**: se il backend si arresta oltre il tempo di tolleranza o l'SMTP non risponde, l'email è persa (resta la riga `failed` in `email_logs`). Evoluzione: stato `pending`, coda nel database e processo separato per l'invio con nuovi tentativi.
 - **Il tempo di risposta del recupero password differisce di pochi millisecondi** tra email registrata e non registrata, per la scrittura del token nel database. Evoluzione: eseguire anche la scrittura in background.
-- **Il token di reset viaggia nel percorso dell'URL**: può finire nei log di accesso del reverse proxy. Va escluso dai log di nginx e la pagina deve usare `Referrer-Policy: no-referrer`.
+- **Il token di reset viaggia nel percorso dell'URL**: è oscurato nei log di accesso di nginx e protetto da `Referrer-Policy: no-referrer`, ma il log degli errori di nginx riporta la richiesta completa in caso di errore del proxy.
 - **Nessun messaggio di errore in `email_logs`**: la causa del fallimento resta nei log del backend.
 - **Tentativi di accesso con username inesistenti non registrati**. Evoluzione: una migrazione che rende `user_id` facoltativo e aggiunge lo username tentato, per riconoscere chi prova a indovinare gli account.
 - **Immutabilità dei movimenti garantita dal backend, non dal database**. Evoluzione: trigger che blocca `UPDATE` e `DELETE` su `stock_movements`.
@@ -168,6 +183,9 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 - **In sviluppo il limite di login vale per tutti insieme**: le richieste arrivano al backend da Next.js, con lo stesso IP. Due esecuzioni ravvicinate dei test end-to-end superano i 10 tentativi al minuto.
 - **Avvisi di `npm audit` sugli strumenti di sviluppo** (catena `braces` di `eslint-config-next`): non entrano nell'applicazione; la correzione automatica declasserebbe `eslint-config-next`.
 - **Pagine renderizzate solo nel browser**: senza JavaScript l'area riservata non funziona, e ogni pagina mostra un indicatore di caricamento prima dei dati. È la conseguenza dei cookie limitati a `/api`.
+- **CSP con `'unsafe-inline'` per script e stili**: Next.js idrata la pagina con script inline e Chart.js imposta attributi `style`. Riduce la protezione della CSP contro l'XSS (restano React, che rende i dati come testo, e l'origine unica). Evoluzione: CSP con nonce generato in `proxy.js`, che però richiede il rendering dinamico di tutte le pagine.
+- **Nessun controllo di salute del backend nel compose**: l'immagine distroless non ha `curl`, quindi nginx parte appena il backend è avviato e per un istante può rispondere 502. Evoluzione: un sotto-comando `api healthcheck`.
+- **Sviluppo e Docker condividono il volume del database**: gli utenti e i prodotti creati in uno si vedono nell'altro.
 - **Totale e pagina dell'elenco utenti letti con due query separate**: con scritture concorrenti il totale può differire di poco dalle righe mostrate. Accettabile per una paginazione.
 - **Migrazioni non automatiche all'avvio**: è possibile avviare il backend su uno schema vecchio. Evoluzione: goose come libreria con i file incorporati (`go:embed`) e un lock per le istanze multiple.
 - **Nessuna pulizia dei refresh token scaduti**: la tabella cresce. Evoluzione: routine periodica di cancellazione.
@@ -179,5 +197,5 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 - [x] Tabella `refresh_tokens` (non prevista dalla scheda, necessaria per revocare i token): token salvato come hash, scadenza, revoca.
 - [x] Server HTTP con timeout espliciti (difesa da client lenti, es. Slowloris).
 - [x] Arresto ordinato del server (graceful shutdown).
-- [ ] Quando il backend sarà containerizzato: `stop_grace_period` di almeno 20 s nel compose.
-- [ ] Header di sicurezza (HSTS, CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy: no-referrer`): decisione presa di impostarli in nginx; da riprendere a fine progetto, valutando se aggiungerli anche al backend.
+- [x] Quando il backend sarà containerizzato: `stop_grace_period` di almeno 20 s nel compose.
+- [x] Header di sicurezza (HSTS, CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy: no-referrer`) in nginx.
