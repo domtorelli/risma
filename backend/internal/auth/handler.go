@@ -181,7 +181,7 @@ func (h *Handler) resetPassword(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, user.ErrWeakPassword):
-			httpx.Error(w, http.StatusBadRequest, weakPasswordMessage)
+			httpx.FieldErrors(w, map[string]string{"password": weakPasswordMessage})
 		case errors.Is(err, ErrInvalidToken):
 			httpx.Error(w, http.StatusBadRequest, "il link non è valido o è scaduto: richiedine uno nuovo con \"Recupera password\"")
 		default:
