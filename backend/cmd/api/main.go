@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -13,15 +12,8 @@ import (
 
 	"github.com/matteotorelli/risma/backend/internal/config"
 	"github.com/matteotorelli/risma/backend/internal/database"
+	"github.com/matteotorelli/risma/backend/internal/httpx"
 )
-
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	response := map[string]string{"status": "ok"}
-
-	json.NewEncoder(w).Encode(response)
-}
 
 func main() {
 	cfg, err := config.Load()
@@ -40,7 +32,9 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /health", healthHandler)
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,
