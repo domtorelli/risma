@@ -56,6 +56,8 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 - **Token del link di reset oscurato nei log di accesso di nginx** (`/reset-password/[oscurato]`), con un formato di log dedicato.
 - **`stop_grace_period: 20s` per il backend**, oltre i 15 s dell'arresto ordinato. Verificato: il backend si ferma con codice 0 dopo il messaggio di arresto.
 - **I test end-to-end girano anche contro lo stack Docker** (`E2E_BASE_URL=https://localhost`), con HTTPS, CSP e cookie `__Host-` attivi.
+- **Verifica da clone pulito**: clone del repository, `.env` copiato da `.env.example` con i soli due segreti completati, `docker compose up -d --build` su volumi nuovi, seed dell'Admin; poi `npm ci`, ESLint, `make check` e i test end-to-end contro lo stack, tutti superati.
+- **`.env.example` con i valori di sviluppo già compilati**: vanno completati solo `DB_PASSWORD` e `JWT_SECRET`. Le variabili di goose non ci sono: le compone il Makefile dai valori del database.
 
 ## Configurazione
 
