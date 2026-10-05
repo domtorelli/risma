@@ -61,9 +61,13 @@ func main() {
 	productSvc := product.NewService(product.NewRepository(db), userRepo, mailSvc, logger)
 	dashboardSvc := dashboard.NewService(dashboard.NewRepository(db))
 
-	requireAuth := authMW.RequireAuth
+	// Le rotte autenticate richiedono anche il token CSRF sulle richieste
+	// che modificano dati; l'ordine dà 401 senza sessione, poi 403.
+	requireAuth := func(next http.Handler) http.Handler {
+		return authMW.RequireAuth(authMW.RequireCSRF(next))
+	}
 	requireAdmin := func(next http.Handler) http.Handler {
-		return authMW.RequireAuth(authMW.RequireRole(role.Admin)(next))
+		return requireAuth(authMW.RequireRole(role.Admin)(next))
 	}
 
 	mux := http.NewServeMux()

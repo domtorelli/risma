@@ -83,6 +83,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	setSessionCookies(w, session)
+	setCSRFCookie(w, r, session.RefreshExpiresAt, true)
 	httpx.JSON(w, http.StatusOK, user.NewResponse(session.User))
 }
 
@@ -105,6 +106,7 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	setSessionCookies(w, session)
+	setCSRFCookie(w, r, session.RefreshExpiresAt, false)
 	httpx.JSON(w, http.StatusOK, user.NewResponse(session.User))
 }
 
@@ -217,8 +219,10 @@ func setSessionCookies(w http.ResponseWriter, s Session) {
 	http.SetCookie(w, sessionCookie(refreshCookieName, s.RefreshToken, refreshCookiePath, time.Until(s.RefreshExpiresAt)))
 }
 
-// clearSessionCookies chiede al browser di cancellare i cookie (MaxAge < 0).
+// clearSessionCookies chiede al browser di cancellare i cookie di sessione
+// e il token CSRF (MaxAge < 0).
 func clearSessionCookies(w http.ResponseWriter) {
 	http.SetCookie(w, sessionCookie(accessCookieName, "", accessCookiePath, -time.Second))
 	http.SetCookie(w, sessionCookie(refreshCookieName, "", refreshCookiePath, -time.Second))
+	http.SetCookie(w, csrfCookie("", -time.Second))
 }
