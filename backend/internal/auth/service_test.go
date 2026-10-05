@@ -342,3 +342,31 @@ func TestNewResetRequestInvalidatesPreviousLink(t *testing.T) {
 		t.Errorf("old link: err = %v, want ErrInvalidToken", err)
 	}
 }
+
+func TestInviteUser(t *testing.T) {
+	svc, store, mailer := newTestServiceWithMailer(t)
+	before := time.Now()
+
+	if err := svc.InviteUser(context.Background(), store.users.u); err != nil {
+		t.Fatalf("InviteUser: %v", err)
+	}
+
+	if len(mailer.sent) != 1 || mailer.sent[0].Type != mail.TypeNewUser {
+		t.Fatalf("sent = %+v, want one new_user email", mailer.sent)
+	}
+
+	msg := mailer.sent[0]
+	if len(msg.Secrets) != 1 || !strings.Contains(msg.Body, msg.Secrets[0]) || !strings.Contains(msg.Body, "mrossi") {
+		t.Fatalf("body must contain username and secret link: %+v", msg)
+	}
+
+	token := strings.TrimPrefix(msg.Secrets[0], "https://risma.example.it/reset-password/")
+	expiresAt := store.resets[hashToken(token)]
+	if ttl := expiresAt.Sub(before); ttl < InviteTTL || ttl > InviteTTL+time.Minute {
+		t.Errorf("invite valid for %v, want %v", ttl, InviteTTL)
+	}
+
+	if err := svc.ResetPassword(context.Background(), token, "PrimaPassword1!"); err != nil {
+		t.Errorf("setting first password with invite link: %v", err)
+	}
+}

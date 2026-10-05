@@ -31,3 +31,30 @@ Risma
 		Secrets: []string{link},
 	}
 }
+
+// welcomeEmail compone l'email di benvenuto con il link per scegliere la
+// prima password; il link è oscurato nella copia salvata in email_logs.
+func welcomeEmail(u user.User, link string) mail.Message {
+	body := fmt.Sprintf(`Gentile %s %s,
+
+è stato creato per te un account su Risma.
+
+Username: %s
+
+Prima di accedere scegli la tua password con questo link, valido 24 ore:
+
+%s
+
+Se il link è scaduto, usa la funzione "Recupera password" nella pagina di accesso.
+
+Risma
+`, u.FirstName, u.LastName, u.Username, link)
+
+	return mail.Message{
+		Type:    mail.TypeNewUser,
+		To:      u.Email,
+		Subject: "Benvenuto in Risma",
+		Body:    body,
+		Secrets: []string{link},
+	}
+}

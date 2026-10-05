@@ -20,6 +20,11 @@ const (
 
 	// PasswordResetTTL è la validità del link di recupero password (scheda, §4.1).
 	PasswordResetTTL = time.Hour
+
+	// InviteTTL è la validità del link con cui un nuovo utente sceglie la
+	// prima password: più lunga del recupero, perché l'utente non se lo
+	// aspetta e potrebbe leggere l'email il giorno dopo.
+	InviteTTL = 24 * time.Hour
 )
 
 var (
@@ -235,9 +240,30 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) error 
 		return fmt.Errorf("requesting password reset: %w", err)
 	}
 
-	s.mailer.SendAsync(ctx, passwordResetEmail(u, s.appBaseURL+"/reset-password/"+token))
+	s.mailer.SendAsync(ctx, passwordResetEmail(u, s.passwordLink(token)))
 
 	return nil
+}
+
+// InviteUser invia a un utente appena creato l'email di benvenuto con il
+// link per scegliere la password, valido InviteTTL. Il link usa lo stesso
+// meccanismo del recupero password.
+func (s *Service) InviteUser(ctx context.Context, u user.User) error {
+	token := newRandomToken()
+
+	if err := s.store.CreatePasswordReset(ctx, u.ID, hashToken(token), s.now().Add(InviteTTL)); err != nil {
+		return fmt.Errorf("inviting user: %w", err)
+	}
+
+	s.mailer.SendAsync(ctx, welcomeEmail(u, s.passwordLink(token)))
+
+	return nil
+}
+
+// passwordLink è l'indirizzo della pagina del frontend in cui si sceglie
+// la password con il token indicato.
+func (s *Service) passwordLink(token string) string {
+	return s.appBaseURL + "/reset-password/" + token
 }
 
 // ResetPassword imposta una nuova password usando un token di reset valido.
