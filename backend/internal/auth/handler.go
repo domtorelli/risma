@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/matteotorelli/risma/backend/internal/httpx"
+	"github.com/matteotorelli/risma/backend/internal/identity"
 	"github.com/matteotorelli/risma/backend/internal/user"
 )
 
@@ -169,7 +170,7 @@ func (h *Handler) resetPassword(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, user.ErrWeakPassword):
 			httpx.Error(w, http.StatusBadRequest, weakPasswordMessage)
 		case errors.Is(err, ErrInvalidToken):
-			httpx.Error(w, http.StatusBadRequest, "il link di recupero non è valido o è scaduto: richiedine uno nuovo")
+			httpx.Error(w, http.StatusBadRequest, "il link non è valido o è scaduto: richiedine uno nuovo con \"Recupera password\"")
 		default:
 			httpx.InternalError(w, r, h.logger, err)
 		}
@@ -180,9 +181,9 @@ func (h *Handler) resetPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
-	identity, _ := IdentityFrom(r.Context())
+	id, _ := identity.FromContext(r.Context())
 
-	u, err := h.svc.CurrentUser(r.Context(), identity.UserID)
+	u, err := h.svc.CurrentUser(r.Context(), id.UserID)
 	if err != nil {
 		if errors.Is(err, user.ErrNotFound) {
 			httpx.Error(w, http.StatusUnauthorized, "autenticazione richiesta")

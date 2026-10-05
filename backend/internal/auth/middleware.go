@@ -1,26 +1,12 @@
 package auth
 
 import (
-	"context"
 	"net/http"
 	"slices"
 
 	"github.com/matteotorelli/risma/backend/internal/httpx"
+	"github.com/matteotorelli/risma/backend/internal/identity"
 )
-
-// Identity è l'utente autenticato di una richiesta, letto dall'access token.
-type Identity struct {
-	UserID string
-	Role   string
-}
-
-type contextKey struct{}
-
-// IdentityFrom restituisce l'utente autenticato salvato da RequireAuth.
-func IdentityFrom(ctx context.Context) (Identity, bool) {
-	id, ok := ctx.Value(contextKey{}).(Identity)
-	return id, ok
-}
 
 type tokenVerifier interface {
 	VerifyAccessToken(token string) (Claims, error)
@@ -37,7 +23,7 @@ func NewMiddleware(verifier tokenVerifier) *Middleware {
 }
 
 // RequireAuth lascia passare solo le richieste con un access token valido
-// nel cookie e salva l'utente nel contesto della richiesta.
+// nel cookie e salva l'utente nel contesto della richiesta (identity).
 func (m *Middleware) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(accessCookieName)
@@ -52,7 +38,7 @@ func (m *Middleware) RequireAuth(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), contextKey{}, Identity{UserID: claims.Subject, Role: claims.Role})
+		ctx := identity.NewContext(r.Context(), identity.Identity{UserID: claims.Subject, Role: claims.Role})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -62,13 +48,13 @@ func (m *Middleware) RequireAuth(next http.Handler) http.Handler {
 func (m *Middleware) RequireRole(roles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			identity, ok := IdentityFrom(r.Context())
+			id, ok := identity.FromContext(r.Context())
 			if !ok {
 				httpx.Error(w, http.StatusUnauthorized, "autenticazione richiesta")
 				return
 			}
 
-			if !slices.Contains(roles, identity.Role) {
+			if !slices.Contains(roles, id.Role) {
 				httpx.Error(w, http.StatusForbidden, "operazione non consentita per il tuo ruolo")
 				return
 			}
