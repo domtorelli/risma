@@ -5,6 +5,7 @@ import "time"
 type User struct {
 	ID                  string
 	RoleID              string
+	RoleName            string // letto con una JOIN su roles, non è una colonna di users
 	Username            string
 	Email               string
 	PasswordHash        string
