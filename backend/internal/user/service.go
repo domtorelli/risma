@@ -101,7 +101,8 @@ func (s *Service) Create(ctx context.Context, actorRole string, in CreateInput) 
 		return User{}, ErrForbidden
 	}
 
-	if err := validatePassword(in.Password); err != nil {
+	hash, err := HashPassword(in.Password)
+	if err != nil {
 		return User{}, err
 	}
 
@@ -115,16 +116,11 @@ func (s *Service) Create(ctx context.Context, actorRole string, in CreateInput) 
 		roleID = operator.ID
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
-	if err != nil {
-		return User{}, fmt.Errorf("hashing password: %w", err)
-	}
-
 	created, err := s.store.Create(ctx, User{
 		RoleID:       roleID,
 		Username:     in.Username,
 		Email:        in.Email,
-		PasswordHash: string(hash),
+		PasswordHash: hash,
 		FirstName:    in.FirstName,
 		LastName:     in.LastName,
 		DateOfBirth:  in.DateOfBirth,
@@ -210,6 +206,22 @@ func (s *Service) Deactivate(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+// HashPassword verifica che la password rispetti le regole AGID e ne
+// calcola l'hash bcrypt. È l'unico punto da cui passa una nuova password,
+// sia alla creazione dell'utente sia al recupero password.
+func HashPassword(password string) (string, error) {
+	if err := validatePassword(password); err != nil {
+		return "", err
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("hashing password: %w", err)
+	}
+
+	return string(hash), nil
 }
 
 // validatePassword applica le regole AGID: minimo 8 caratteri, almeno una

@@ -2,6 +2,12 @@ package user
 
 import "time"
 
+// Valori del tipo ENUM user_status.
+const (
+	StatusActive  = "active"
+	StatusBlocked = "blocked" // dopo troppi tentativi di login falliti
+)
+
 type User struct {
 	ID                  string
 	RoleID              string

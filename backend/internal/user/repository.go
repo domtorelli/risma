@@ -43,6 +43,11 @@ const findByUsernameQuery = `
 	FROM users u ` + joinRoles + `
 	WHERE lower(u.username) = lower($1) AND u.deleted_at IS NULL`
 
+const findByEmailQuery = `
+	SELECT ` + userColumns + `
+	FROM users u ` + joinRoles + `
+	WHERE lower(u.email) = lower($1) AND u.deleted_at IS NULL`
+
 // searchCondition filtra gli utenti attivi il cui username o email
 // corrisponde al pattern ILIKE $1 ('%' per non filtrare).
 const searchCondition = `
@@ -183,6 +188,20 @@ func (r *Repository) FindByUsername(ctx context.Context, username string) (User,
 		}
 
 		return User{}, fmt.Errorf("finding user by username: %w", err)
+	}
+
+	return u, nil
+}
+
+// FindByEmail cerca un utente non disattivato, senza distinguere maiuscole e minuscole.
+func (r *Repository) FindByEmail(ctx context.Context, email string) (User, error) {
+	u, err := scanUser(r.pool.QueryRow(ctx, findByEmailQuery, email))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return User{}, ErrNotFound
+		}
+
+		return User{}, fmt.Errorf("finding user by email: %w", err)
 	}
 
 	return u, nil
