@@ -19,10 +19,28 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 - **JWT con `golang-jwt/jwt/v5`**: la libreria standard non gestisce i JWT e scrivere a mano la verifica di firma, algoritmo e scadenza è un rischio evitabile. È la libreria di riferimento in Go.
 - **Email con `net/smtp` della libreria standard** verso Mailpit in sviluppo: per inviare testo semplice non serve una dipendenza.
 - **nginx come reverse proxy HTTPS** (`/api` → backend, `/` → frontend): diffuso, configurazione esplicita dei certificati e degli header.
-- **Chart.js per il grafico della dashboard**, usato solo in un Client Component.
+- **Chart.js con `react-chartjs-2` per il grafico della dashboard**, usato solo in un Client Component; si registrano solo i moduli del grafico a barre.
 - **Test del livello service con fake in memoria** dei repository: le interfacce piccole definite dal service rendono i fake banali e i test non richiedono un database.
 - **Mailpit in sviluppo**: server SMTP che cattura le email e le mostra in un'interfaccia web, senza spedirle davvero.
 - **Versioni delle immagini Docker fissate** (mai `latest`), per avere lo stesso ambiente a ogni clone.
+
+## Frontend
+
+- **Next.js 16 (App Router) in JavaScript**, versioni delle dipendenze fissate. In Next.js 16 il middleware si chiama `proxy.js`.
+- **Pagine come Client Component che chiamano `/api` dal browser**: i cookie di sessione hanno `Path=/api`, quindi il server di Next.js non vede mai i token. Un solo modulo (`lib/api.js`) aggiunge l'header CSRF alle richieste che modificano dati e, su un 401, rinnova la sessione una volta e ripete la richiesta; più richieste che ricevono 401 insieme condividono lo stesso rinnovo, così il refresh token non viene ruotato due volte.
+- **`proxy.js` come controllo "ottimistico"**: chi non ha il cookie del token CSRF va al login senza scaricare la pagina riservata. La sicurezza resta nel backend, che verifica ogni richiesta.
+- **Ritorno alla pagina richiesta dopo il login solo per percorsi interni** (`/...`, non `//sito` né URL assoluti): niente open redirect.
+- **Bootstrap Italia con il solo CSS e markup scritto a mano**: niente JavaScript della libreria, perché modificherebbe lo stesso DOM gestito da React. Modali, schede e messaggi sono componenti React con le classi di Bootstrap Italia. Font e icone sono copiati da `node_modules` in `public/` prima di `dev` e `build`; i font sono dichiarati in CSS, così il testo ha subito il font giusto.
+- **Etichette dei campi sempre in alto**: Bootstrap Italia le sposta con il proprio JavaScript quando il campo riceve il focus; qui hanno sempre la classe `active`, e un margine in alto evita che coprano l'elemento precedente.
+- **Navigazione a schede (`nav-tabs`) invece del menu a scomparsa**: il menu di Bootstrap Italia sui telefoni richiede il suo JavaScript; con tre sezioni le schede entrano in ogni schermo.
+- **Form con `react-hook-form` e `zod`**: gli schemi in `lib/validation.js` riproducono le regole del backend (password AGID comprese), così l'utente vede subito gli errori; gli errori per campo restituiti dal backend (`fields`) vengono mostrati sotto ai campi corrispondenti. Al login si controlla solo la presenza dei campi.
+- **Errore di password debole al reset come errore sul campo** (`fields.password`), come negli altri form: il frontend non deve riconoscere gli errori dal testo del messaggio.
+- **Importi formattati lavorando sulla stringa decimale** del backend (`"1234.5"` → `1.234,50 €`), senza convertirli in numero.
+- **Accessibilità**: link "vai al contenuto", etichette collegate ai campi, errori collegati con `aria-describedby`, messaggi d'errore con `role="alert"`, focus nella finestra modale all'apertura e di nuovo sul pulsante alla chiusura, chiusura con Esc, testo nascosto per le icone e per i pulsanti delle righe ("Modifica mario.rossi"), tabella nascosta con i dati del grafico per i lettori di schermo, "sotto soglia" indicato con un testo e non solo con il colore.
+- **La pagina di reset password non invia il Referer** (`<meta name="referrer" content="no-referrer">`): il token è nell'URL.
+- **Cookie CSRF con il prefisso `__Host-` solo in HTTPS**: i browser non accettano il prefisso su `http://localhost`, quindi in sviluppo il cookie si chiama `csrf_token`. Il backend sceglie il nome in base ad `APP_BASE_URL`; frontend e `proxy.js` accettano entrambi.
+- **In sviluppo Next.js inoltra `/api` al backend** (rewrite verso `BACKEND_URL`): browser, pagine e API restano sulla stessa origine, senza CORS. In Docker lo fa nginx.
+- **Test end-to-end con Playwright** (`npm run test:e2e`) sull'applicazione reale: accesso e permessi, inventario con carichi e scarichi, invito di un nuovo utente fino al primo accesso, rinnovo della sessione, logout. Il login dell'Admin avviene una volta sola e la sessione viene riusata, per non consumare i tentativi limitati per IP; i dati creati hanno nomi unici, quindi i test si possono ripetere.
 
 ## Configurazione
 
@@ -146,6 +164,10 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 - **Nessuno storico dei movimenti per prodotto nelle API**: i movimenti sono salvati e la dashboard mostra gli ultimi 5. Evoluzione: elenco paginato dei movimenti di un prodotto.
 - **Limite di richieste in memoria**: vale per una sola istanza del backend e si azzera al riavvio; con IPv6 un attaccante che dispone di un'intera rete può cambiare indirizzo. Evoluzione: limite in nginx o in un archivio condiviso (es. Redis), raggruppando gli IPv6 per rete /64.
 - **Nessun id di richiesta nei log**: un errore 500 si ritrova nei log per ora, metodo e percorso. Evoluzione: middleware con `X-Request-ID` riportato nei log e nella risposta.
+- **Playwright fissato alla 1.49**: le versioni successive non supportano Ubuntu 20.04, il sistema dell'ambiente di sviluppo (WSL). Evoluzione: aggiornare con il sistema.
+- **In sviluppo il limite di login vale per tutti insieme**: le richieste arrivano al backend da Next.js, con lo stesso IP. Due esecuzioni ravvicinate dei test end-to-end superano i 10 tentativi al minuto.
+- **Avvisi di `npm audit` sugli strumenti di sviluppo** (catena `braces` di `eslint-config-next`): non entrano nell'applicazione; la correzione automatica declasserebbe `eslint-config-next`.
+- **Pagine renderizzate solo nel browser**: senza JavaScript l'area riservata non funziona, e ogni pagina mostra un indicatore di caricamento prima dei dati. È la conseguenza dei cookie limitati a `/api`.
 - **Totale e pagina dell'elenco utenti letti con due query separate**: con scritture concorrenti il totale può differire di poco dalle righe mostrate. Accettabile per una paginazione.
 - **Migrazioni non automatiche all'avvio**: è possibile avviare il backend su uno schema vecchio. Evoluzione: goose come libreria con i file incorporati (`go:embed`) e un lock per le istanze multiple.
 - **Nessuna pulizia dei refresh token scaduti**: la tabella cresce. Evoluzione: routine periodica di cancellazione.
