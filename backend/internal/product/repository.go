@@ -34,6 +34,7 @@ var (
 	ErrInvalidType       = errors.New("product type does not exist")
 	ErrInsufficientStock = errors.New("not enough stock for this movement")
 	ErrQuantityTooLarge  = errors.New("resulting stock quantity is too large")
+	ErrStockNotEmpty     = errors.New("product still has stock")
 )
 
 // productColumns elenca le colonne nello stesso ordine in cui scanProduct
@@ -123,9 +124,18 @@ const updateQuery = `
 	SELECT ` + productColumns + `
 	FROM p ` + productJoins
 
+// softDeleteQuery elimina il prodotto solo se la giacenza è zero. L'UPDATE
+// blocca la riga e, se un movimento concorrente l'ha appena modificata,
+// ricontrolla la condizione sul valore aggiornato: un carico arrivato nel
+// frattempo impedisce l'eliminazione.
 const softDeleteQuery = `
 	UPDATE products
 	SET deleted_at = now()
+	WHERE id = $1 AND deleted_at IS NULL AND stock_quantity = 0`
+
+const stockQuantityQuery = `
+	SELECT stock_quantity
+	FROM products
 	WHERE id = $1 AND deleted_at IS NULL`
 
 // ListFilter contiene i criteri dell'elenco prodotti. Search e TypeID vuoti
@@ -373,16 +383,28 @@ func (r *Repository) RecordMovement(ctx context.Context, m Movement) (Product, e
 	return updated, nil
 }
 
-// SoftDelete elimina logicamente un prodotto; i suoi movimenti restano.
+// SoftDelete elimina logicamente un prodotto con giacenza zero; i suoi
+// movimenti restano. Restituisce ErrStockNotEmpty se la giacenza è positiva,
+// ErrNotFound se il prodotto non esiste o è già eliminato.
 func (r *Repository) SoftDelete(ctx context.Context, id string) error {
 	tag, err := r.pool.Exec(ctx, softDeleteQuery, id)
 	if err != nil {
 		return fmt.Errorf("deleting product: %w", err)
 	}
 
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
+	if tag.RowsAffected() == 1 {
+		return nil
 	}
 
-	return nil
+	// Nessuna riga eliminata: il prodotto non esiste oppure ha giacenza.
+	var quantity int
+	if err := r.pool.QueryRow(ctx, stockQuantityQuery, id).Scan(&quantity); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+
+		return fmt.Errorf("checking product stock: %w", err)
+	}
+
+	return ErrStockNotEmpty
 }

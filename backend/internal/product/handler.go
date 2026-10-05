@@ -311,6 +311,8 @@ func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, err error) 
 		httpx.FieldErrors(w, map[string]string{"product_type_id": "tipo di prodotto inesistente"})
 	case errors.Is(err, ErrInsufficientStock):
 		httpx.FieldErrors(w, map[string]string{"quantity": "quantità disponibile insufficiente per lo scarico"})
+	case errors.Is(err, ErrStockNotEmpty):
+		httpx.Error(w, http.StatusConflict, "puoi eliminare solo un prodotto con quantità disponibile pari a zero: registra prima uno scarico")
 	case errors.Is(err, ErrQuantityTooLarge):
 		httpx.FieldErrors(w, map[string]string{"quantity": "la giacenza risultante è troppo grande"})
 	default:

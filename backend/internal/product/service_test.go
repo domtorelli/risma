@@ -56,7 +56,13 @@ func (f *fakeStore) RecordMovement(ctx context.Context, m Movement) (Product, er
 	return f.product, nil
 }
 
-func (f *fakeStore) SoftDelete(ctx context.Context, id string) error { return nil }
+// SoftDelete imita la condizione della query: solo con giacenza zero.
+func (f *fakeStore) SoftDelete(ctx context.Context, id string) error {
+	if f.product.StockQuantity > 0 {
+		return ErrStockNotEmpty
+	}
+	return nil
+}
 
 type fakeAdmins struct {
 	requestedRole string
@@ -322,5 +328,23 @@ func TestListOrder(t *testing.T) {
 				t.Errorf("order %q has no SQL clause", store.lastFilter.Order)
 			}
 		})
+	}
+}
+
+func TestDeleteRequiresEmptyStock(t *testing.T) {
+	svc, store, _, _ := newTestService()
+	store.product = Product{ID: "product-1", StockQuantity: 3}
+	ctx := context.Background()
+
+	if err := svc.Delete(ctx, "product-1"); !errors.Is(err, ErrStockNotEmpty) {
+		t.Fatalf("delete with stock: err = %v, want ErrStockNotEmpty", err)
+	}
+
+	if _, err := svc.RecordMovement(ctx, "user-1", "product-1", MovementInput{Type: MovementOut, Quantity: 3}); err != nil {
+		t.Fatalf("emptying stock: %v", err)
+	}
+
+	if err := svc.Delete(ctx, "product-1"); err != nil {
+		t.Errorf("delete with zero stock: %v", err)
 	}
 }

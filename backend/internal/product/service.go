@@ -286,8 +286,9 @@ func (s *Service) RecordMovement(ctx context.Context, actorID, productID string,
 	return updated, nil
 }
 
-// Delete elimina logicamente un prodotto, anche con giacenza positiva:
-// i movimenti restano nello storico.
+// Delete elimina logicamente un prodotto, solo se la giacenza è zero: chi
+// elimina deve prima registrare lo scarico della merce rimasta, così il
+// magazzino resta coerente con lo storico dei movimenti, che resta.
 func (s *Service) Delete(ctx context.Context, id string) error {
 	if err := s.store.SoftDelete(ctx, id); err != nil {
 		return fmt.Errorf("deleting product: %w", err)
