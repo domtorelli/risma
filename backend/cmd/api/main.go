@@ -15,6 +15,7 @@ import (
 	"github.com/matteotorelli/risma/backend/internal/database"
 	"github.com/matteotorelli/risma/backend/internal/httpx"
 	"github.com/matteotorelli/risma/backend/internal/mail"
+	"github.com/matteotorelli/risma/backend/internal/role"
 	"github.com/matteotorelli/risma/backend/internal/user"
 )
 
@@ -53,6 +54,14 @@ func main() {
 	}
 	authMW := auth.NewMiddleware(authSvc)
 
+	roleSvc := role.NewService(role.NewRepository(db))
+	userSvc := user.NewService(userRepo, roleSvc, authSvc)
+
+	requireAuth := authMW.RequireAuth
+	requireAdmin := func(next http.Handler) http.Handler {
+		return authMW.RequireAuth(authMW.RequireRole(role.Admin)(next))
+	}
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +69,8 @@ func main() {
 	})
 
 	auth.NewHandler(authSvc, logger, cfg.TrustedProxies).RegisterRoutes(mux, authMW)
+	role.NewHandler(roleSvc, logger).RegisterRoutes(mux, requireAuth)
+	user.NewHandler(userSvc, logger).RegisterRoutes(mux, requireAuth, requireAdmin)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,

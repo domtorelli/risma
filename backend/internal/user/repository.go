@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/matteotorelli/risma/backend/internal/database"
 )
 
 // Codici SQLSTATE di PostgreSQL.
@@ -48,17 +49,24 @@ const findByEmailQuery = `
 	FROM users u ` + joinRoles + `
 	WHERE lower(u.email) = lower($1) AND u.deleted_at IS NULL`
 
-// searchCondition filtra gli utenti attivi il cui username o email
-// corrisponde al pattern ILIKE $1 ('%' per non filtrare).
+const listByRoleQuery = `
+	SELECT ` + userColumns + `
+	FROM users u ` + joinRoles + `
+	WHERE r.name = $1 AND u.deleted_at IS NULL
+	ORDER BY u.username`
+
+// searchCondition filtra gli utenti disattivati ($2 = true) o non
+// disattivati ($2 = false) il cui username o email corrisponde al pattern
+// ILIKE $1 ('%' per non filtrare).
 const searchCondition = `
-	u.deleted_at IS NULL AND (u.username ILIKE $1 OR u.email ILIKE $1)`
+	(u.deleted_at IS NOT NULL) = $2 AND (u.username ILIKE $1 OR u.email ILIKE $1)`
 
 const listQuery = `
 	SELECT ` + userColumns + `
 	FROM users u ` + joinRoles + `
 	WHERE ` + searchCondition + `
 	ORDER BY u.created_at DESC, u.id DESC
-	LIMIT $2 OFFSET $3`
+	LIMIT $3 OFFSET $4`
 
 const countQuery = `
 	SELECT count(*)
@@ -96,20 +104,32 @@ const updateRoleQuery = `
 	SELECT ` + userColumns + `
 	FROM u ` + joinRoles
 
+// softDeleteQuery disattiva l'utente e revoca le sue sessioni nella stessa
+// istruzione: altrimenti, dopo una riattivazione, i vecchi refresh token
+// tornerebbero validi.
 const softDeleteQuery = `
-	UPDATE users
-	SET deleted_at = now()
-	WHERE id = $1 AND deleted_at IS NULL`
+	WITH deactivated AS (
+		UPDATE users
+		SET deleted_at = now()
+		WHERE id = $1 AND deleted_at IS NULL
+		RETURNING id
+	),
+	revoked AS (
+		UPDATE refresh_tokens
+		SET revoked_at = now()
+		WHERE user_id IN (SELECT id FROM deactivated) AND revoked_at IS NULL
+	)
+	SELECT id FROM deactivated`
 
-// likeEscaper rende letterali i caratteri speciali di LIKE nel testo cercato,
-// così "a_b" non corrisponde anche ad "axb". Il backslash è il carattere di
-// escape predefinito di PostgreSQL.
-var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
-
-// searchPattern trasforma il testo cercato in un pattern "contiene".
-func searchPattern(search string) string {
-	return "%" + likeEscaper.Replace(search) + "%"
-}
+const reactivateQuery = `
+	WITH u AS (
+		UPDATE users
+		SET deleted_at = NULL
+		WHERE id = $1 AND deleted_at IS NOT NULL
+		RETURNING *
+	)
+	SELECT ` + userColumns + `
+	FROM u ` + joinRoles
 
 type Repository struct{ pool *pgxpool.Pool }
 
@@ -207,10 +227,11 @@ func (r *Repository) FindByEmail(ctx context.Context, email string) (User, error
 	return u, nil
 }
 
-// List restituisce una pagina di utenti non disattivati, dal più recente,
-// il cui username o email contiene search (vuoto per non filtrare).
-func (r *Repository) List(ctx context.Context, search string, limit, offset int) ([]User, error) {
-	rows, err := r.pool.Query(ctx, listQuery, searchPattern(search), limit, offset)
+// List restituisce una pagina di utenti, dal più recente, il cui username
+// o email contiene search (vuoto per non filtrare): i disattivati se
+// deactivated è true, altrimenti quelli non disattivati.
+func (r *Repository) List(ctx context.Context, search string, deactivated bool, limit, offset int) ([]User, error) {
+	rows, err := r.pool.Query(ctx, listQuery, database.ContainsPattern(search), deactivated, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("listing users: %w", err)
 	}
@@ -225,11 +246,29 @@ func (r *Repository) List(ctx context.Context, search string, limit, offset int)
 	return users, nil
 }
 
+// ListByRole restituisce gli utenti non disattivati con il ruolo indicato
+// (es. gli Admin a cui inviare gli avvisi di magazzino).
+func (r *Repository) ListByRole(ctx context.Context, roleName string) ([]User, error) {
+	rows, err := r.pool.Query(ctx, listByRoleQuery, roleName)
+	if err != nil {
+		return nil, fmt.Errorf("listing users by role: %w", err)
+	}
+
+	users, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (User, error) {
+		return scanUser(row)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("reading users by role: %w", err)
+	}
+
+	return users, nil
+}
+
 // Count conta gli utenti che List restituirebbe senza paginazione.
-func (r *Repository) Count(ctx context.Context, search string) (int, error) {
+func (r *Repository) Count(ctx context.Context, search string, deactivated bool) (int, error) {
 	var total int
 
-	err := r.pool.QueryRow(ctx, countQuery, searchPattern(search)).Scan(&total)
+	err := r.pool.QueryRow(ctx, countQuery, database.ContainsPattern(search), deactivated).Scan(&total)
 	if err != nil {
 		return 0, fmt.Errorf("counting users: %w", err)
 	}
@@ -297,17 +336,35 @@ func (r *Repository) UpdateRole(ctx context.Context, id, roleID string) (User, e
 	return updated, nil
 }
 
-// SoftDelete disattiva un utente impostando deleted_at; la riga resta per
-// conservare le tracce nei log e nei movimenti di magazzino.
+// SoftDelete disattiva un utente impostando deleted_at e ne revoca le
+// sessioni; la riga resta per conservare le tracce nei log e nei movimenti
+// di magazzino.
 func (r *Repository) SoftDelete(ctx context.Context, id string) error {
-	tag, err := r.pool.Exec(ctx, softDeleteQuery, id)
+	var deactivatedID string
+
+	err := r.pool.QueryRow(ctx, softDeleteQuery, id).Scan(&deactivatedID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+
 		return fmt.Errorf("deactivating user: %w", err)
 	}
 
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
+	return nil
+}
+
+// Reactivate riattiva un utente disattivato. Restituisce ErrNotFound se
+// l'utente non esiste o non è disattivato.
+func (r *Repository) Reactivate(ctx context.Context, id string) (User, error) {
+	u, err := scanUser(r.pool.QueryRow(ctx, reactivateQuery, id))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return User{}, ErrNotFound
+		}
+
+		return User{}, fmt.Errorf("reactivating user: %w", err)
 	}
 
-	return nil
+	return u, nil
 }

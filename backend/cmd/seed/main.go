@@ -21,6 +21,7 @@ import (
 	"github.com/matteotorelli/risma/backend/internal/database"
 	"github.com/matteotorelli/risma/backend/internal/role"
 	"github.com/matteotorelli/risma/backend/internal/user"
+	"github.com/matteotorelli/risma/backend/internal/validation"
 )
 
 func main() {
@@ -34,7 +35,7 @@ func main() {
 
 func run(ctx context.Context) error {
 	var in user.CreateInput
-	var birthDate string
+	var birthDate, password string
 
 	flag.StringVar(&in.Username, "username", "", "username dell'admin")
 	flag.StringVar(&in.Email, "email", "", "email dell'admin")
@@ -54,7 +55,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("parsing birth date: %w", err)
 	}
 
-	in.Password, err = readPassword()
+	password, err = readPassword()
 	if err != nil {
 		return err
 	}
@@ -71,7 +72,8 @@ func run(ctx context.Context) error {
 	defer db.Close()
 
 	roles := role.NewService(role.NewRepository(db))
-	users := user.NewService(user.NewRepository(db), roles)
+	// Il seed non invia inviti (usa CreateWithPassword): nessun inviter.
+	users := user.NewService(user.NewRepository(db), roles, nil)
 
 	admin, err := roles.FindByName(ctx, role.Admin)
 	if err != nil {
@@ -80,8 +82,13 @@ func run(ctx context.Context) error {
 	in.RoleID = admin.ID
 
 	// Il comando è eseguito da chi amministra il server: agisce come Admin.
-	created, err := users.Create(ctx, role.Admin, in)
+	created, err := users.CreateWithPassword(ctx, role.Admin, in, password)
 	if err != nil {
+		var validationErr *validation.Error
+		if errors.As(err, &validationErr) {
+			return fmt.Errorf("%w: %v", err, validationErr.Fields)
+		}
+
 		return err
 	}
 

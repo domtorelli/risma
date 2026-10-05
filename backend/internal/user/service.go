@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"time"
@@ -22,22 +23,31 @@ const (
 )
 
 var (
-	ErrWeakPassword = errors.New("password must be 8 to 72 bytes long and contain an uppercase letter, a digit and a special character")
-	ErrForbidden    = errors.New("only an admin can assign or change roles")
+	ErrWeakPassword     = errors.New("password must be 8 to 72 bytes long and contain an uppercase letter, a digit and a special character")
+	ErrForbidden        = errors.New("only an admin can assign or change roles")
+	ErrSelfDeactivation = errors.New("users cannot deactivate their own account")
 )
 
 type userStore interface {
 	FindByID(ctx context.Context, id string) (User, error)
-	List(ctx context.Context, search string, limit, offset int) ([]User, error)
-	Count(ctx context.Context, search string) (int, error)
+	List(ctx context.Context, search string, deactivated bool, limit, offset int) ([]User, error)
+	Count(ctx context.Context, search string, deactivated bool) (int, error)
 	Create(ctx context.Context, u User) (User, error)
 	Update(ctx context.Context, u User) (User, error)
 	UpdateRole(ctx context.Context, id, roleID string) (User, error)
 	SoftDelete(ctx context.Context, id string) error
+	Reactivate(ctx context.Context, id string) (User, error)
 }
 
 type roleFinder interface {
 	FindByName(ctx context.Context, name string) (role.Role, error)
+}
+
+// inviter invia a un nuovo utente l'email di benvenuto con il link per
+// scegliere la password. È implementato da auth.Service: l'interfaccia sta
+// qui così user non importa auth (che importa già user).
+type inviter interface {
+	InviteUser(ctx context.Context, u User) error
 }
 
 // Il compilatore verifica che i tipi concreti soddisfino le interfacce.
@@ -47,22 +57,24 @@ var (
 )
 
 type Service struct {
-	store userStore
-	roles roleFinder
+	store   userStore
+	roles   roleFinder
+	inviter inviter
+	now     func() time.Time
 }
 
-func NewService(store userStore, roles roleFinder) *Service {
-	return &Service{store: store, roles: roles}
+// NewService crea il service degli utenti. inviter può essere nil solo se
+// non si usa Create (es. il comando seed, che usa CreateWithPassword).
+func NewService(store userStore, roles roleFinder, inviter inviter) *Service {
+	return &Service{store: store, roles: roles, inviter: inviter, now: time.Now}
 }
 
-// CreateInput contiene i dati per creare un utente; Password è in chiaro
-// e non deve mai essere salvata né registrata nei log.
+// CreateInput contiene i dati per creare un utente.
 // RoleID vuoto assegna il ruolo Operatore; sceglierne uno è riservato all'Admin.
 type CreateInput struct {
 	RoleID      string
 	Username    string
 	Email       string
-	Password    string
 	FirstName   string
 	LastName    string
 	DateOfBirth time.Time
@@ -78,11 +90,13 @@ type UpdateInput struct {
 	DateOfBirth time.Time
 }
 
-// ListInput contiene ricerca e paginazione; Page parte da 1.
+// ListInput contiene ricerca, filtro e paginazione; Page parte da 1.
+// Deactivated true elenca gli utenti disattivati invece di quelli attivi.
 type ListInput struct {
-	Search   string
-	Page     int
-	PageSize int
+	Search      string
+	Deactivated bool
+	Page        int
+	PageSize    int
 }
 
 // Page è una pagina dell'elenco utenti con il totale dei risultati.
@@ -93,16 +107,59 @@ type Page struct {
 	PageSize int
 }
 
-// Create valida la password, ne calcola l'hash con bcrypt e salva l'utente.
-// actorRole è il ruolo di chi esegue l'operazione: solo un Admin può
-// scegliere il ruolo del nuovo utente (scheda, §4.3).
+// Create crea un utente senza che nessuno ne scelga la password: l'utente
+// riceve un'email di benvenuto con il link per impostarla. Nel frattempo la
+// password è casuale e nessuno la conosce. actorRole è il ruolo di chi
+// esegue l'operazione: solo un Admin può scegliere il ruolo (scheda, §4.3).
+//
+// Se l'invio dell'invito fallisce l'utente resta creato e l'errore viene
+// restituito: l'utente può comunque usare il recupero password.
 func (s *Service) Create(ctx context.Context, actorRole string, in CreateInput) (User, error) {
+	hash, err := randomPasswordHash()
+	if err != nil {
+		return User{}, fmt.Errorf("creating user: %w", err)
+	}
+
+	created, err := s.create(ctx, actorRole, in, hash)
+	if err != nil {
+		return User{}, err
+	}
+
+	if err := s.inviter.InviteUser(ctx, created); err != nil {
+		return User{}, fmt.Errorf("inviting created user: %w", err)
+	}
+
+	return created, nil
+}
+
+// CreateWithPassword crea un utente con la password indicata, senza invito.
+// Serve solo al comando seed, che crea il primo Admin quando ancora nessuno
+// può riceverne o gestirne gli inviti. Password è in chiaro e non deve mai
+// essere salvata né registrata nei log.
+func (s *Service) CreateWithPassword(ctx context.Context, actorRole string, in CreateInput, password string) (User, error) {
+	hash, err := HashPassword(password)
+	if err != nil {
+		return User{}, err
+	}
+
+	return s.create(ctx, actorRole, in, hash)
+}
+
+// create applica le regole comuni alla creazione e salva l'utente.
+func (s *Service) create(ctx context.Context, actorRole string, in CreateInput, passwordHash string) (User, error) {
 	if in.RoleID != "" && actorRole != role.Admin {
 		return User{}, ErrForbidden
 	}
 
-	hash, err := HashPassword(in.Password)
-	if err != nil {
+	p := profile{
+		Username:    in.Username,
+		Email:       in.Email,
+		FirstName:   in.FirstName,
+		LastName:    in.LastName,
+		DateOfBirth: in.DateOfBirth,
+	}.normalize()
+
+	if err := p.validate(s.today()); err != nil {
 		return User{}, err
 	}
 
@@ -118,12 +175,12 @@ func (s *Service) Create(ctx context.Context, actorRole string, in CreateInput) 
 
 	created, err := s.store.Create(ctx, User{
 		RoleID:       roleID,
-		Username:     in.Username,
-		Email:        in.Email,
-		PasswordHash: hash,
-		FirstName:    in.FirstName,
-		LastName:     in.LastName,
-		DateOfBirth:  in.DateOfBirth,
+		Username:     p.Username,
+		Email:        p.Email,
+		PasswordHash: passwordHash,
+		FirstName:    p.FirstName,
+		LastName:     p.LastName,
+		DateOfBirth:  p.DateOfBirth,
 	})
 	if err != nil {
 		return User{}, fmt.Errorf("creating user: %w", err)
@@ -153,12 +210,12 @@ func (s *Service) List(ctx context.Context, in ListInput) (Page, error) {
 	}
 	pageSize = min(pageSize, MaxPageSize)
 
-	total, err := s.store.Count(ctx, in.Search)
+	total, err := s.store.Count(ctx, in.Search, in.Deactivated)
 	if err != nil {
 		return Page{}, fmt.Errorf("listing users: %w", err)
 	}
 
-	users, err := s.store.List(ctx, in.Search, pageSize, (page-1)*pageSize)
+	users, err := s.store.List(ctx, in.Search, in.Deactivated, pageSize, (page-1)*pageSize)
 	if err != nil {
 		return Page{}, fmt.Errorf("listing users: %w", err)
 	}
@@ -168,13 +225,19 @@ func (s *Service) List(ctx context.Context, in ListInput) (Page, error) {
 
 // Update modifica i dati di un utente; non tocca ruolo né password.
 func (s *Service) Update(ctx context.Context, id string, in UpdateInput) (User, error) {
+	p := profile(in).normalize()
+
+	if err := p.validate(s.today()); err != nil {
+		return User{}, err
+	}
+
 	updated, err := s.store.Update(ctx, User{
 		ID:          id,
-		Username:    in.Username,
-		Email:       in.Email,
-		FirstName:   in.FirstName,
-		LastName:    in.LastName,
-		DateOfBirth: in.DateOfBirth,
+		Username:    p.Username,
+		Email:       p.Email,
+		FirstName:   p.FirstName,
+		LastName:    p.LastName,
+		DateOfBirth: p.DateOfBirth,
 	})
 	if err != nil {
 		return User{}, fmt.Errorf("updating user: %w", err)
@@ -199,13 +262,47 @@ func (s *Service) ChangeRole(ctx context.Context, actorRole, id, roleID string) 
 	return updated, nil
 }
 
-// Deactivate disattiva un utente (soft delete).
-func (s *Service) Deactivate(ctx context.Context, id string) error {
+// Deactivate disattiva un utente (soft delete) e ne chiude le sessioni.
+// actorID è l'utente che esegue l'operazione: nessuno può disattivare sé
+// stesso, per non chiudersi fuori per errore.
+func (s *Service) Deactivate(ctx context.Context, actorID, id string) error {
+	if actorID == id {
+		return ErrSelfDeactivation
+	}
+
 	if err := s.store.SoftDelete(ctx, id); err != nil {
 		return fmt.Errorf("deactivating user: %w", err)
 	}
 
 	return nil
+}
+
+// Reactivate riattiva un utente disattivato.
+func (s *Service) Reactivate(ctx context.Context, id string) (User, error) {
+	u, err := s.store.Reactivate(ctx, id)
+	if err != nil {
+		return User{}, fmt.Errorf("reactivating user: %w", err)
+	}
+
+	return u, nil
+}
+
+// today restituisce la data odierna (UTC, ore 00:00), confrontabile con
+// le date di nascita che arrivano senza orario.
+func (s *Service) today() time.Time {
+	return s.now().UTC().Truncate(24 * time.Hour)
+}
+
+// randomPasswordHash restituisce l'hash bcrypt di una password casuale che
+// nessuno conosce: l'account non è utilizzabile finché l'utente non sceglie
+// la sua password con il link ricevuto.
+func randomPasswordHash() (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(rand.Text()), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("hashing random password: %w", err)
+	}
+
+	return string(hash), nil
 }
 
 // HashPassword verifica che la password rispetti le regole AGID e ne
