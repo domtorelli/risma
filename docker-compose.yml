@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:18
+    image: postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
     environment:
       POSTGRES_USER: ${DB_USER:?Please set DB_USER in .env file}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Please set DB_PASSWORD in .env file}
@@ -14,12 +14,96 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-  
+
   mailpit:
     image: axllent/mailpit:v1.31.3
     ports:
       - "127.0.0.1:1025:1025"
       - "127.0.0.1:8025:8025"
 
+  # Genera il certificato HTTPS autofirmato per localhost nel volume
+  # nginx_certs, solo se non esiste già, poi termina.
+  certs:
+    image: alpine/openssl:3.5.4
+    entrypoint: ["sh", "/generate-cert.sh", "/certs"]
+    volumes:
+      - ./nginx/generate-cert.sh:/generate-cert.sh:ro
+      - nginx_certs:/certs
+
+  # Applica le migrazioni con goose (incluso nell'immagine del backend)
+  # prima che parta il backend, poi termina.
+  migrate:
+    image: risma-backend
+    build: ./backend
+    command: ["goose", "up"]
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: "host=db port=5432 user=${DB_USER} password=${DB_PASSWORD} dbname=${DB_NAME} sslmode=${DB_SSLMODE:?Please set DB_SSLMODE in .env file}"
+      GOOSE_MIGRATION_DIR: /migrations
+    depends_on:
+      db:
+        condition: service_healthy
+
+  backend:
+    image: risma-backend
+    build: ./backend
+    environment:
+      HTTP_PORT: "8080"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_SSLMODE: ${DB_SSLMODE}
+      JWT_SECRET: ${JWT_SECRET:?Please set JWT_SECRET in .env file}
+      # Solo nginx (IP fisso nella rete interna) può indicare l'IP del client.
+      TRUSTED_PROXIES: 172.30.0.10
+      APP_BASE_URL: https://localhost
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_FROM: ${SMTP_FROM:-Risma <noreply@risma.local>}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    # Più dei 15 s dell'arresto ordinato del backend: il valore predefinito
+    # di Docker (10 s) interromperebbe le richieste in corso.
+    stop_grace_period: 20s
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+
+  # Unico servizio raggiungibile dall'esterno, solo da questo computer.
+  nginx:
+    image: nginx:1.29.8-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+    ports:
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:443:443"
+    volumes:
+      - ./nginx/risma.conf:/etc/nginx/conf.d/default.conf:ro
+      - nginx_certs:/etc/nginx/certs:ro
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+      backend:
+        condition: service_started
+      frontend:
+        condition: service_started
+    networks:
+      default:
+        ipv4_address: 172.30.0.10
+    restart: unless-stopped
+
+# Rete con indirizzi fissi, per indicare al backend l'IP di nginx.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
 volumes:
   postgres_data:
+  nginx_certs:
