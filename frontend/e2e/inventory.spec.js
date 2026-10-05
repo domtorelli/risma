@@ -53,7 +53,14 @@ test("prodotto: creazione, carico/scarico e avviso sotto soglia", async ({ page 
   await expect(dialog.getByText("esiste già un prodotto con questo nome")).toBeVisible();
   await dialog.getByRole("button", { name: "Annulla" }).click();
 
-  // Eliminazione.
+  // Eliminazione: possibile solo con quantità zero (ora 15).
+  await expect(row.getByRole("button", { name: /Elimina/ })).toHaveCount(0);
+  await row.getByRole("button", { name: /Carico\/Scarico/ }).click();
+  await dialog.getByText("Scarico", { exact: true }).click();
+  await dialog.getByLabel("Quantità").fill("15");
+  await dialog.getByRole("button", { name: "Registra movimento" }).click();
+  await expect(row).toContainText("0");
+
   await row.getByRole("button", { name: /Elimina/ }).click();
   await dialog.getByRole("button", { name: "Elimina" }).click();
   await expect(page.getByText(`Prodotto ${name} eliminato.`)).toBeVisible();

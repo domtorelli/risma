@@ -143,7 +143,8 @@ export default function Inventory() {
       ) : (
         <>
           <p className="small text-muted" aria-live="polite">
-            {data.total === 1 ? "1 prodotto trovato" : `${data.total} prodotti trovati`}
+            {data.total === 1 ? "1 prodotto trovato" : `${data.total} prodotti trovati`}. Si può eliminare solo un prodotto
+            con quantità zero.
           </p>
           <div className="table-responsive">
             <table className="table table-hover" aria-busy={loading}>
@@ -187,9 +188,13 @@ export default function Inventory() {
                       <button type="button" className="btn btn-outline-primary btn-xs me-2" onClick={() => setDialog({ type: "edit", product: p })}>
                         Modifica<span className="visually-hidden"> {p.name}</span>
                       </button>
-                      <button type="button" className="btn btn-outline-danger btn-xs" onClick={() => setDialog({ type: "delete", product: p })}>
-                        Elimina<span className="visually-hidden"> {p.name}</span>
-                      </button>
+                      {/* Si elimina solo un prodotto senza giacenza: il backend lo
+                          verifica comunque, il pulsante evita un tentativo inutile. */}
+                      {p.stock_quantity === 0 && (
+                        <button type="button" className="btn btn-outline-danger btn-xs" onClick={() => setDialog({ type: "delete", product: p })}>
+                          Elimina<span className="visually-hidden"> {p.name}</span>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
