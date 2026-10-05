@@ -1,0 +1,5 @@
+# Solo i sorgenti servono alla build dell'immagine.
+.git
+*.test
+/api
+/seed
