@@ -43,3 +43,12 @@ func InternalError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, 
 	logger.Error("handling request", "method", r.Method, "path", r.URL.Path, "error", err)
 	Error(w, http.StatusInternalServerError, "errore interno del server")
 }
+
+// FieldErrors risponde 400 con un messaggio per ogni campo non valido:
+// {"error": "...", "fields": {"campo": "messaggio"}}.
+func FieldErrors(w http.ResponseWriter, fields map[string]string) {
+	JSON(w, http.StatusBadRequest, map[string]any{
+		"error":  "alcuni campi non sono validi",
+		"fields": fields,
+	})
+}
