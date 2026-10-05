@@ -25,7 +25,7 @@ func Recovery(logger *slog.Logger) func(http.Handler) http.Handler {
 			defer func() {
 				if recovered := recover(); recovered != nil {
 					logger.Error("panic recovered", "panic", recovered, "method", r.Method, "path", r.URL.Path)
-					Error(w, http.StatusInternalServerError, "internal server error")
+					Error(w, http.StatusInternalServerError, "errore interno del server")
 				}
 			}()
 

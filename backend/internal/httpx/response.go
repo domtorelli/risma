@@ -3,6 +3,7 @@ package httpx
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 )
 
@@ -30,7 +31,15 @@ func JSON(w http.ResponseWriter, status int, data any) {
 	_, _ = w.Write(body)
 }
 
-// Error scrive un errore nel formato {"error": "messaggio"}.
+// Error scrive un errore nel formato {"error": "messaggio"}. Il messaggio
+// viene mostrato all'utente, quindi non deve contenere dettagli interni.
 func Error(w http.ResponseWriter, status int, message string) {
 	JSON(w, status, map[string]string{"error": message})
+}
+
+// InternalError registra err nei log e risponde 500 con un messaggio
+// generico: la causa resta nei log, il client non vede dettagli interni.
+func InternalError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, err error) {
+	logger.Error("handling request", "method", r.Method, "path", r.URL.Path, "error", err)
+	Error(w, http.StatusInternalServerError, "errore interno del server")
 }
