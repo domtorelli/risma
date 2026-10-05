@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,9 +16,12 @@ import (
 )
 
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("loading config: %v", err)
+		logger.Error("loading config", "error", err)
+		os.Exit(1)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -26,7 +29,8 @@ func main() {
 
 	db, err := database.Connect(ctx, cfg)
 	if err != nil {
-		log.Fatalf("connecting to database: %v", err)
+		logger.Error("connecting to database", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
@@ -47,20 +51,22 @@ func main() {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("server error: %v", err)
+			logger.Error("server error", "error", err)
+			os.Exit(1)
 		}
 	}()
 
-	log.Printf("server listening on %s", srv.Addr)
+	logger.Info("server listening", "addr", srv.Addr)
 
 	<-ctx.Done()
 
-	log.Println("shutting down server...")
+	logger.Info("shutting down server...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("server shutdown error: %v", err)
+		logger.Error("server shutdown error", "error", err)
+		os.Exit(1)
 	}
 }
