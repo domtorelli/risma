@@ -1,0 +1,10 @@
+# Generati o installati durante la build dell'immagine.
+node_modules
+.next
+public/bootstrap-italia
+
+# Test e configurazioni locali.
+e2e/.auth
+test-results
+playwright-report
+.env*

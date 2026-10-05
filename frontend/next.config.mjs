@@ -6,6 +6,10 @@ const nextConfig = {
   // Non dichiarare la tecnologia usata nell'header X-Powered-By.
   poweredByHeader: false,
 
+  // La build produce un server Node autonomo (.next/standalone) con le sole
+  // dipendenze necessarie: è quello che gira nell'immagine Docker.
+  output: "standalone",
+
   // In sviluppo il browser parla solo con Next.js (porta 3000), che inoltra
   // /api al backend: frontend e API restano sulla stessa origine, quindi
   // niente CORS e i cookie SameSite=Strict vengono inviati. In Docker la
