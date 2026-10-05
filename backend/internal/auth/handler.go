@@ -38,13 +38,21 @@ func NewHandler(svc *Service, logger *slog.Logger, trustedProxies []netip.Prefix
 	return &Handler{svc: svc, logger: logger, trustedProxies: trustedProxies}
 }
 
+// RateLimits sono i limiti di richieste per IP delle rotte pubbliche:
+// Attempts per i tentativi con credenziali o token (login, reset password),
+// Emails per le richieste che inviano un'email (recupero password).
+type RateLimits struct {
+	Attempts func(http.Handler) http.Handler
+	Emails   func(http.Handler) http.Handler
+}
+
 // RegisterRoutes collega le rotte di autenticazione al mux.
-func (h *Handler) RegisterRoutes(mux *http.ServeMux, mw *Middleware) {
-	mux.HandleFunc("POST /api/auth/login", h.login)
+func (h *Handler) RegisterRoutes(mux *http.ServeMux, mw *Middleware, limits RateLimits) {
+	mux.Handle("POST /api/auth/login", limits.Attempts(http.HandlerFunc(h.login)))
 	mux.HandleFunc("POST /api/auth/refresh", h.refresh)
 	mux.HandleFunc("POST /api/auth/logout", h.logout)
-	mux.HandleFunc("POST /api/auth/forgot-password", h.forgotPassword)
-	mux.HandleFunc("POST /api/auth/reset-password", h.resetPassword)
+	mux.Handle("POST /api/auth/forgot-password", limits.Emails(http.HandlerFunc(h.forgotPassword)))
+	mux.Handle("POST /api/auth/reset-password", limits.Attempts(http.HandlerFunc(h.resetPassword)))
 	mux.Handle("GET /api/auth/me", mw.RequireAuth(http.HandlerFunc(h.me)))
 }
 

@@ -76,7 +76,17 @@ func main() {
 		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	auth.NewHandler(authSvc, logger, cfg.TrustedProxies).RegisterRoutes(mux, authMW)
+	// Limiti per IP sulle rotte pubbliche, oltre al blocco dell'account dopo
+	// 5 tentativi: rallentano chi prova molti username o invia molte email.
+	attemptLimiter := httpx.NewRateLimiter(10, time.Minute, cfg.TrustedProxies)
+	emailLimiter := httpx.NewRateLimiter(5, 15*time.Minute, cfg.TrustedProxies)
+	go attemptLimiter.Run(ctx, 5*time.Minute)
+	go emailLimiter.Run(ctx, 5*time.Minute)
+
+	auth.NewHandler(authSvc, logger, cfg.TrustedProxies).RegisterRoutes(mux, authMW, auth.RateLimits{
+		Attempts: attemptLimiter.Limit,
+		Emails:   emailLimiter.Limit,
+	})
 	role.NewHandler(roleSvc, logger).RegisterRoutes(mux, requireAuth)
 	user.NewHandler(userSvc, logger).RegisterRoutes(mux, requireAuth, requireAdmin)
 	product.NewHandler(productSvc, logger).RegisterRoutes(mux, requireAuth)
