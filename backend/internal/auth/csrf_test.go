@@ -24,7 +24,8 @@ func TestRequireCSRF(t *testing.T) {
 		{"both missing", http.MethodDelete, "", "", http.StatusForbidden},
 	}
 
-	mw := NewMiddleware(nil)
+	const cookieName = "__Host-csrf_token"
+	mw := NewMiddleware(nil, cookieName)
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -33,7 +34,7 @@ func TestRequireCSRF(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := httptest.NewRequest(tt.method, "/api/users", nil)
 			if tt.cookie != "" {
-				r.AddCookie(&http.Cookie{Name: csrfCookieName, Value: tt.cookie})
+				r.AddCookie(&http.Cookie{Name: cookieName, Value: tt.cookie})
 			}
 			if tt.header != "" {
 				r.Header.Set(CSRFHeader, tt.header)
@@ -50,12 +51,13 @@ func TestRequireCSRF(t *testing.T) {
 }
 
 func TestSetCSRFCookie(t *testing.T) {
+	const cookieName = "csrf_token"
 	r := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", nil)
-	r.AddCookie(&http.Cookie{Name: csrfCookieName, Value: "existing"})
+	r.AddCookie(&http.Cookie{Name: cookieName, Value: "existing"})
 
 	tokenSet := func(rotate bool) *http.Cookie {
 		w := httptest.NewRecorder()
-		setCSRFCookie(w, r, testExpiry(), rotate)
+		setCSRFCookie(w, r, cookieName, testExpiry(), rotate)
 		return w.Result().Cookies()[0]
 	}
 
@@ -76,4 +78,13 @@ func TestSetCSRFCookie(t *testing.T) {
 
 func testExpiry() time.Time {
 	return time.Now().Add(time.Hour)
+}
+
+func TestCSRFCookieName(t *testing.T) {
+	if got := CSRFCookieName(true); got != "__Host-csrf_token" {
+		t.Errorf("https: %q", got)
+	}
+	if got := CSRFCookieName(false); got != "csrf_token" {
+		t.Errorf("http: %q", got)
+	}
 }

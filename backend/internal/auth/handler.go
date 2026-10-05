@@ -32,10 +32,13 @@ type Handler struct {
 	svc            *Service
 	logger         *slog.Logger
 	trustedProxies []netip.Prefix
+	csrfCookie     string
 }
 
-func NewHandler(svc *Service, logger *slog.Logger, trustedProxies []netip.Prefix) *Handler {
-	return &Handler{svc: svc, logger: logger, trustedProxies: trustedProxies}
+// NewHandler crea l'handler di autenticazione; csrfCookie è il nome del
+// cookie del token CSRF (vedi CSRFCookieName).
+func NewHandler(svc *Service, logger *slog.Logger, trustedProxies []netip.Prefix, csrfCookie string) *Handler {
+	return &Handler{svc: svc, logger: logger, trustedProxies: trustedProxies, csrfCookie: csrfCookie}
 }
 
 // RateLimits sono i limiti di richieste per IP delle rotte pubbliche:
@@ -91,7 +94,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	setSessionCookies(w, session)
-	setCSRFCookie(w, r, session.RefreshExpiresAt, true)
+	setCSRFCookie(w, r, h.csrfCookie, session.RefreshExpiresAt, true)
 	httpx.JSON(w, http.StatusOK, user.NewResponse(session.User))
 }
 
@@ -104,7 +107,7 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 	session, err := h.svc.Refresh(r.Context(), token)
 	if err != nil {
 		if errors.Is(err, ErrInvalidToken) {
-			clearSessionCookies(w)
+			h.clearSessionCookies(w)
 			httpx.Error(w, http.StatusUnauthorized, "sessione scaduta, accedi di nuovo")
 			return
 		}
@@ -114,7 +117,7 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	setSessionCookies(w, session)
-	setCSRFCookie(w, r, session.RefreshExpiresAt, false)
+	setCSRFCookie(w, r, h.csrfCookie, session.RefreshExpiresAt, false)
 	httpx.JSON(w, http.StatusOK, user.NewResponse(session.User))
 }
 
@@ -129,7 +132,7 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clearSessionCookies(w)
+	h.clearSessionCookies(w)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -229,8 +232,8 @@ func setSessionCookies(w http.ResponseWriter, s Session) {
 
 // clearSessionCookies chiede al browser di cancellare i cookie di sessione
 // e il token CSRF (MaxAge < 0).
-func clearSessionCookies(w http.ResponseWriter) {
+func (h *Handler) clearSessionCookies(w http.ResponseWriter) {
 	http.SetCookie(w, sessionCookie(accessCookieName, "", accessCookiePath, -time.Second))
 	http.SetCookie(w, sessionCookie(refreshCookieName, "", refreshCookiePath, -time.Second))
-	http.SetCookie(w, csrfCookie("", -time.Second))
+	http.SetCookie(w, csrfCookie(h.csrfCookie, "", -time.Second))
 }

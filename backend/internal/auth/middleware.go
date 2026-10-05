@@ -15,11 +15,14 @@ type tokenVerifier interface {
 var _ tokenVerifier = (*Service)(nil)
 
 type Middleware struct {
-	verifier tokenVerifier
+	verifier   tokenVerifier
+	csrfCookie string
 }
 
-func NewMiddleware(verifier tokenVerifier) *Middleware {
-	return &Middleware{verifier: verifier}
+// NewMiddleware crea i middleware di autenticazione; csrfCookie è il nome
+// del cookie del token CSRF (vedi CSRFCookieName).
+func NewMiddleware(verifier tokenVerifier, csrfCookie string) *Middleware {
+	return &Middleware{verifier: verifier, csrfCookie: csrfCookie}
 }
 
 // RequireAuth lascia passare solo le richieste con un access token valido

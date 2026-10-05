@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -54,7 +55,10 @@ func main() {
 		logger.Error("creating auth service", "error", err)
 		os.Exit(1)
 	}
-	authMW := auth.NewMiddleware(authSvc)
+	// Il cookie CSRF ha il prefisso __Host- solo in HTTPS: i browser non lo
+	// accettano su http://localhost in sviluppo.
+	csrfCookie := auth.CSRFCookieName(strings.HasPrefix(cfg.AppBaseURL, "https://"))
+	authMW := auth.NewMiddleware(authSvc, csrfCookie)
 
 	roleSvc := role.NewService(role.NewRepository(db))
 	userSvc := user.NewService(userRepo, roleSvc, authSvc)
@@ -83,7 +87,7 @@ func main() {
 	go attemptLimiter.Run(ctx, 5*time.Minute)
 	go emailLimiter.Run(ctx, 5*time.Minute)
 
-	auth.NewHandler(authSvc, logger, cfg.TrustedProxies).RegisterRoutes(mux, authMW, auth.RateLimits{
+	auth.NewHandler(authSvc, logger, cfg.TrustedProxies, csrfCookie).RegisterRoutes(mux, authMW, auth.RateLimits{
 		Attempts: attemptLimiter.Limit,
 		Emails:   emailLimiter.Limit,
 	})

@@ -16,17 +16,26 @@ import (
 //
 // Il prefisso __Host- obbliga il browser ad accettare il cookie solo se è
 // Secure, senza Domain e con Path=/: un sottodominio non può sovrascriverlo
-// con un valore scelto dall'attaccante.
-const (
-	csrfCookieName = "__Host-csrf_token"
-	CSRFHeader     = "X-CSRF-Token"
-)
+// con un valore scelto dall'attaccante. I browser lo accettano solo da
+// un'origine HTTPS, quindi in sviluppo su http://localhost il cookie si
+// chiama senza prefisso (vedi CSRFCookieName).
+const CSRFHeader = "X-CSRF-Token"
+
+// CSRFCookieName restituisce il nome del cookie del token CSRF: con il
+// prefisso __Host- quando l'applicazione è servita in HTTPS.
+func CSRFCookieName(httpsOrigin bool) string {
+	if httpsOrigin {
+		return "__Host-csrf_token"
+	}
+
+	return "csrf_token"
+}
 
 // csrfCookie crea il cookie del token CSRF. Non è HttpOnly perché il
 // frontend deve leggerlo per copiarlo nell'header.
-func csrfCookie(value string, maxAge time.Duration) *http.Cookie {
+func csrfCookie(name, value string, maxAge time.Duration) *http.Cookie {
 	return &http.Cookie{
-		Name:     csrfCookieName,
+		Name:     name,
 		Value:    value,
 		Path:     "/",
 		MaxAge:   int(maxAge.Seconds()),
@@ -41,16 +50,16 @@ func csrfCookie(value string, maxAge time.Duration) *http.Cookie {
 // login, così un token precedente non sopravvive al cambio di utente);
 // altrimenti si conserva quello già presente, così le altre schede aperte
 // continuano a funzionare dopo un rinnovo della sessione.
-func setCSRFCookie(w http.ResponseWriter, r *http.Request, expiresAt time.Time, rotate bool) {
+func setCSRFCookie(w http.ResponseWriter, r *http.Request, name string, expiresAt time.Time, rotate bool) {
 	token := newRandomToken()
 
 	if !rotate {
-		if cookie, err := r.Cookie(csrfCookieName); err == nil && cookie.Value != "" {
+		if cookie, err := r.Cookie(name); err == nil && cookie.Value != "" {
 			token = cookie.Value
 		}
 	}
 
-	http.SetCookie(w, csrfCookie(token, time.Until(expiresAt)))
+	http.SetCookie(w, csrfCookie(name, token, time.Until(expiresAt)))
 }
 
 // isSafeMethod indica i metodi che non modificano dati e non richiedono
@@ -70,7 +79,7 @@ func (m *Middleware) RequireCSRF(next http.Handler) http.Handler {
 			return
 		}
 
-		cookie, err := r.Cookie(csrfCookieName)
+		cookie, err := r.Cookie(m.csrfCookie)
 		header := r.Header.Get(CSRFHeader)
 
 		if err != nil || cookie.Value == "" || header == "" ||
