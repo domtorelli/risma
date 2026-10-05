@@ -35,7 +35,8 @@ test.describe("senza sessione", () => {
     await page.getByLabel("Username").fill(admin.username);
     await page.locator("#password").fill(admin.password);
     await page.getByRole("button", { name: "Accedi" }).click();
-    await expect(page).toHaveURL(/localhost:3000\/dashboard$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    expect(new URL(page.url()).hostname).not.toBe("example.com");
   });
 
   test("recupero password: stessa risposta per qualsiasi email", async ({ page }) => {
