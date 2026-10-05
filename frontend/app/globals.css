@@ -1,0 +1,86 @@
+/*
+ * Font di Bootstrap Italia, serviti da public/bootstrap-italia (vedi
+ * scripts/copy-bootstrap-italia.mjs). Dichiararli in CSS invece di usare il
+ * loader JavaScript della libreria evita il cambio di font dopo il caricamento.
+ */
+@font-face {
+  font-family: "Titillium Web";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src:
+    url("/bootstrap-italia/fonts/Titillium_Web/titillium-web-v10-latin-ext_latin-300.woff2") format("woff2"),
+    url("/bootstrap-italia/fonts/Titillium_Web/titillium-web-v10-latin-ext_latin-300.woff") format("woff");
+}
+
+@font-face {
+  font-family: "Titillium Web";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    url("/bootstrap-italia/fonts/Titillium_Web/titillium-web-v10-latin-ext_latin-regular.woff2") format("woff2"),
+    url("/bootstrap-italia/fonts/Titillium_Web/titillium-web-v10-latin-ext_latin-regular.woff") format("woff");
+}
+
+@font-face {
+  font-family: "Titillium Web";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src:
+    url("/bootstrap-italia/fonts/Titillium_Web/titillium-web-v10-latin-ext_latin-600.woff2") format("woff2"),
+    url("/bootstrap-italia/fonts/Titillium_Web/titillium-web-v10-latin-ext_latin-600.woff") format("woff");
+}
+
+@font-face {
+  font-family: "Titillium Web";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src:
+    url("/bootstrap-italia/fonts/Titillium_Web/titillium-web-v10-latin-ext_latin-700.woff2") format("woff2"),
+    url("/bootstrap-italia/fonts/Titillium_Web/titillium-web-v10-latin-ext_latin-700.woff") format("woff");
+}
+
+@font-face {
+  font-family: "Roboto Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    url("/bootstrap-italia/fonts/Roboto_Mono/roboto-mono-v13-latin-ext_latin-regular.woff2") format("woff2"),
+    url("/bootstrap-italia/fonts/Roboto_Mono/roboto-mono-v13-latin-ext_latin-regular.woff") format("woff");
+}
+
+/* Contenitore delle pagine di accesso (login, recupero password). */
+.auth-container {
+  max-width: 32rem;
+}
+
+/* Le etichette dei campi restano sempre sopra il campo (classe "active"):
+   Bootstrap Italia le sposta con il proprio JavaScript, che qui non è usato
+   (gestisce tutto React). Un'etichetta "active" sale dell'85% della sua
+   altezza di riga (2,5rem) e sporge di circa 2rem sopra il gruppo: il
+   margine in alto evita che copra l'elemento precedente. Fondendosi con il
+   margine di quell'elemento resta il maggiore dei due, quindi tra due campi
+   consecutivi vale ancora il margin-bottom di 3rem di Bootstrap Italia. */
+.form-group {
+  margin-top: 2rem;
+}
+
+.form-group label {
+  pointer-events: none;
+}
+
+/* Colonna delle azioni nelle tabelle: non va a capo. */
+.table-actions {
+  white-space: nowrap;
+  width: 1%;
+}
+
+/* Grafico della dashboard: altezza fissa, larghezza fluida. */
+.chart-container {
+  position: relative;
+  height: 18rem;
+}

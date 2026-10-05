@@ -1,0 +1,31 @@
+{
+  "name": "risma-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "assets": "node scripts/copy-bootstrap-italia.mjs",
+    "predev": "npm run assets",
+    "dev": "next dev",
+    "prebuild": "npm run assets",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "5.9.1",
+    "bootstrap-italia": "2.18.3",
+    "chart.js": "4.5.1",
+    "next": "16.3.8",
+    "react": "19.2.8",
+    "react-chartjs-2": "5.3.1",
+    "react-dom": "19.2.8",
+    "react-hook-form": "7.89.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.8"
+  }
+}
