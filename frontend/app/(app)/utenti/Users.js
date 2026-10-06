@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import Alert from "@/components/Alert";
 import { useAuth } from "@/components/AuthProvider";
@@ -22,6 +22,7 @@ export default function Users() {
 
   const [showDeactivated, setShowDeactivated] = useState(false);
   const [search, setSearch] = useState("");
+  const searchRef = useRef(null);
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search.trim());
 
@@ -46,6 +47,12 @@ export default function Users() {
   const switchTab = (deactivated) => {
     setShowDeactivated(deactivated);
     setPage(1);
+  };
+
+  // Il pulsante sparisce appena la ricerca è vuota: il focus passa al campo.
+  const resetSearch = () => {
+    setSearch("");
+    searchRef.current?.focus();
   };
 
   const closeDialog = () => setDialog(null);
@@ -87,18 +94,23 @@ export default function Users() {
         ))}
       </ul>
 
-      <div className="form-group">
-        <label htmlFor="user-search" className="active">
-          Cerca per username o email
-        </label>
-        <input
-          id="user-search"
-          type="search"
-          className="form-control"
-          value={search}
-          maxLength={100}
-          onChange={(event) => setSearch(event.target.value)}
-        />
+      <div className="row">
+        <div className="col-12 col-md-6 col-lg-5">
+          <div className="form-group mb-4">
+            <label htmlFor="user-search" className="active">
+              Cerca per username o email
+            </label>
+            <input
+              id="user-search"
+              ref={searchRef}
+              type="search"
+              className="form-control"
+              value={search}
+              maxLength={100}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+        </div>
       </div>
 
       <Alert type="danger">{error}</Alert>
@@ -107,11 +119,18 @@ export default function Users() {
         loading && <Spinner />
       ) : (
         <>
-          <p className="small text-muted" aria-live="polite">
-            {data.total === 1 ? "1 utente trovato" : `${data.total} utenti trovati`}
-          </p>
+          <div className="d-flex flex-wrap align-items-center gap-3 mb-2">
+            <p className="small text-muted mb-0" aria-live="polite">
+              {data.total === 1 ? "1 utente trovato" : `${data.total} utenti trovati`}
+            </p>
+            {search !== "" && (
+              <button type="button" className="btn btn-link btn-xs p-0" onClick={resetSearch}>
+                Azzera ricerca
+              </button>
+            )}
+          </div>
           <div className="table-responsive">
-            <table className="table table-hover" aria-busy={loading}>
+            <table className="table table-hover align-middle" aria-busy={loading}>
               <caption className="visually-hidden">Utenti {showDeactivated ? "disattivati" : "attivi"}</caption>
               <thead>
                 <tr>
@@ -144,7 +163,7 @@ export default function Users() {
                         <span className="badge bg-success">Attivo</span>
                       )}
                     </td>
-                    <td>{formatDateTime(u.last_login_at)}</td>
+                    <td className="text-nowrap">{formatDateTime(u.last_login_at)}</td>
                     <td className="table-actions">
                       {u.deactivated_at ? (
                         <button type="button" className="btn btn-outline-primary btn-xs" onClick={() => setDialog({ type: "reactivate", user: u })}>
@@ -152,7 +171,7 @@ export default function Users() {
                         </button>
                       ) : (
                         <>
-                          <button type="button" className="btn btn-outline-primary btn-xs me-2" onClick={() => setDialog({ type: "edit", user: u })}>
+                          <button type="button" className="btn btn-outline-primary btn-xs" onClick={() => setDialog({ type: "edit", user: u })}>
                             Modifica<span className="visually-hidden"> {u.username}</span>
                           </button>
                           {u.id !== me.id && (
@@ -167,7 +186,7 @@ export default function Users() {
                 ))}
                 {data.users.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="text-center">
+                    <td colSpan={7} className="text-center text-muted py-4">
                       Nessun utente trovato.
                     </td>
                   </tr>

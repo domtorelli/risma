@@ -30,12 +30,19 @@ export default function Modal({ title, onClose, children, footer, size }) {
       }
     };
 
+    // La pagina dietro la finestra non scorre (regola in globals.css). Sparendo,
+    // la barra di scorrimento la farebbe scattare di qualche pixel a ogni
+    // apertura: se ne compensa la larghezza, misurata prima di nasconderla.
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
     document.addEventListener("keydown", onKeyDown);
     document.body.classList.add("modal-open");
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
 
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.classList.remove("modal-open");
+      document.body.style.paddingRight = "";
       previousFocus?.focus?.();
     };
   }, []);

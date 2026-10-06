@@ -64,19 +64,90 @@
    altezza di riga (2,5rem) e sporge di circa 2rem sopra il gruppo: il
    margine in alto evita che copra l'elemento precedente. Fondendosi con il
    margine di quell'elemento resta il maggiore dei due, quindi tra due campi
-   consecutivi vale ancora il margin-bottom di 3rem di Bootstrap Italia. */
-.form-group {
+   consecutivi vale ancora il margin-bottom di 3rem di Bootstrap Italia.
+   Lo stesso vale per i select (.select-wrapper): anche la loro etichetta sta
+   sopra il campo. Con gli stessi margini, in una riga che mescola campi di
+   testo e select i bordi coincidono. */
+.form-group,
+.select-wrapper {
   margin-top: 2rem;
+}
+
+.select-wrapper {
+  margin-bottom: 3rem;
 }
 
 .form-group label {
   pointer-events: none;
 }
 
-/* Colonna delle azioni nelle tabelle: non va a capo. */
+/* Nelle righe a colonne i margini dei campi non si fondono (le colonne sono
+   elementi flex): 2rem sopra e 3rem sotto lascerebbero 5rem tra una riga di
+   campi e l'altra, invece dei 3rem dei campi impilati. */
+.row > [class*="col"] > .form-group,
+.row > [class*="col"] > .select-wrapper {
+  margin-bottom: 1rem;
+}
+
+/* L'ultimo campo di una finestra non ha bisogno dei 3rem sotto: a separare i
+   pulsanti dal contenuto c'è già il footer. */
+.modal-body form > .form-group:last-child,
+.modal-body form > .select-wrapper:last-child {
+  margin-bottom: 1rem;
+}
+
+/* Le card con ombra (.card-bg) di Bootstrap Italia hanno 8px di margine
+   laterale sotto lg ma sono larghe il 100%: sporgerebbero di 8px nella
+   colonna accanto e non sarebbero allineate al resto della pagina. La
+   larghezza la decide la griglia. */
+.card.card-bg {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Bootstrap Italia non definisce .modal-open (in Bootstrap 5 lo scorrimento
+   lo blocca il JavaScript della libreria, che qui non è usato): la classe
+   aggiunta da Modal.js non farebbe nulla e la pagina scorrerebbe dietro la
+   finestra. */
+body.modal-open {
+  overflow: hidden;
+}
+
+/* Tabelle dei dati: Bootstrap Italia porta il testo a 1,125rem da lg in su;
+   con molte colonne si resta a 1rem, così entrano nel contenitore. */
+.table {
+  font-size: 1rem;
+}
+
+/* Il contenitore scorrevole delle tabelle deve essere il riferimento del
+   testo nascosto (.visually-hidden, posizionato in modo assoluto): senza,
+   quel testo resta fuori dal ritaglio e allarga l'intera pagina sugli
+   schermi stretti. */
+.table-responsive {
+  position: relative;
+}
+
+/* Colonna delle azioni nelle tabelle: non va a capo, pulsanti distanziati. */
 .table-actions {
   white-space: nowrap;
   width: 1%;
+}
+
+.table-actions .btn + .btn {
+  margin-left: 0.5rem;
+}
+
+/* Durante un nuovo caricamento la tabella resta visibile (vedi useApiData) ma
+   si attenua. Il ritardo di 200ms evita il lampeggio nei caricamenti rapidi. */
+.table[aria-busy="true"] {
+  opacity: 0.5;
+  transition: opacity 0.2s ease 0.2s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .table[aria-busy="true"] {
+    transition-duration: 0s;
+  }
 }
 
 /* Grafico della dashboard: altezza fissa, larghezza fluida. */

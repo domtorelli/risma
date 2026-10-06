@@ -38,9 +38,24 @@ export default function MovementModal({ product, onSaved, onClose }) {
     }
   };
 
+  // I pulsanti stanno nel footer della finestra, fuori dal form: il pulsante di
+  // invio gli è collegato con l'attributo form.
   return (
-    <Modal title={`Carico o scarico: ${product.name}`} onClose={onClose}>
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+    <Modal
+      title={`Carico o scarico: ${product.name}`}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn btn-outline-secondary" onClick={onClose} disabled={isSubmitting}>
+            Annulla
+          </button>
+          <button type="submit" form="movement-form" className="btn btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? "Registrazione…" : "Registra movimento"}
+          </button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} noValidate id="movement-form">
         <Alert type="danger">{serverError}</Alert>
         <p>
           Quantità disponibile: <strong>{product.stock_quantity}</strong> (soglia minima {product.min_stock_threshold})
@@ -72,15 +87,6 @@ export default function MovementModal({ product, onSaved, onClose }) {
           error={errors.quantity?.message}
         />
         <TextareaField id="note" label="Nota" rows={2} registration={register("note")} error={errors.note?.message} />
-
-        <div className="d-flex justify-content-end gap-2">
-          <button type="button" className="btn btn-outline-secondary" onClick={onClose} disabled={isSubmitting}>
-            Annulla
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-            {isSubmitting ? "Registrazione…" : "Registra movimento"}
-          </button>
-        </div>
       </form>
     </Modal>
   );

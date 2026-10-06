@@ -59,7 +59,7 @@ export default function ForgotPasswordForm() {
         </>
       )}
 
-      <p className="mt-4">
+      <p className="mt-4 mb-0 text-center">
         <Link href="/login">Torna all&apos;accesso</Link>
       </p>
     </>

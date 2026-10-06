@@ -60,7 +60,7 @@ export function TextareaField({ id, label, registration, error, rows = 3 }) {
 // options: [{ value, label }]; placeholder è la prima voce, senza valore.
 export function SelectField({ id, label, registration, error, options, placeholder, required }) {
   return (
-    <div className="select-wrapper mb-4">
+    <div className="select-wrapper">
       <label htmlFor={id}>
         {label}
         {required && <span aria-hidden="true"> *</span>}

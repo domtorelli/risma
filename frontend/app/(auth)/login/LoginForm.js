@@ -36,7 +36,7 @@ export default function LoginForm() {
 
   return (
     <>
-      <h1 className="h2 mb-4">Accedi a Risma</h1>
+      <h1 className="h2 mb-5">Accedi a Risma</h1>
 
       {searchParams.get("reset") === "1" && (
         <Alert type="success">Password impostata: ora puoi accedere con la nuova password.</Alert>
@@ -64,7 +64,7 @@ export default function LoginForm() {
         </button>
       </form>
 
-      <p className="mt-4">
+      <p className="mt-4 mb-0 text-center">
         <Link href="/recupera-password">Hai dimenticato la password?</Link>
       </p>
     </>

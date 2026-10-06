@@ -57,8 +57,24 @@ export default function UserFormModal({ user, roles, isAdmin, onSaved, onClose }
     }
   };
 
+  // I pulsanti stanno nel footer della finestra, fuori dal form: il pulsante di
+  // invio gli è collegato con l'attributo form.
   return (
-    <Modal title={editing ? `Modifica ${user.username}` : "Nuovo utente"} onClose={onClose} size="lg">
+    <Modal
+      title={editing ? `Modifica ${user.username}` : "Nuovo utente"}
+      onClose={onClose}
+      size="lg"
+      footer={
+        <>
+          <button type="button" className="btn btn-outline-secondary" onClick={onClose} disabled={isSubmitting}>
+            Annulla
+          </button>
+          <button type="submit" form="user-form" className="btn btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? "Salvataggio…" : editing ? "Salva modifiche" : "Crea utente"}
+          </button>
+        </>
+      }
+    >
       <form onSubmit={handleSubmit(onSubmit)} noValidate id="user-form">
         <Alert type="danger">{serverError}</Alert>
         {!editing && (
@@ -100,15 +116,6 @@ export default function UserFormModal({ user, roles, isAdmin, onSaved, onClose }
               />
             </div>
           )}
-        </div>
-
-        <div className="d-flex justify-content-end gap-2 mt-2">
-          <button type="button" className="btn btn-outline-secondary" onClick={onClose} disabled={isSubmitting}>
-            Annulla
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-            {isSubmitting ? "Salvataggio…" : editing ? "Salva modifiche" : "Crea utente"}
-          </button>
         </div>
       </form>
     </Modal>

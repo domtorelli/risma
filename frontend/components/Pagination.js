@@ -10,7 +10,7 @@ export default function Pagination({ page, pageSize, total, onChange, label = "P
   }
 
   return (
-    <nav className="pagination-wrapper justify-content-center" aria-label={label}>
+    <nav className="pagination-wrapper justify-content-center mt-3" aria-label={label}>
       <ul className="pagination">
         <li className={`page-item ${page <= 1 ? "disabled" : ""}`}>
           <button type="button" className="page-link" onClick={() => onChange(page - 1)} disabled={page <= 1}>

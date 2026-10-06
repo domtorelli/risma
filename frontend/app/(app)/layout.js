@@ -7,7 +7,7 @@ export default function AppLayout({ children }) {
   return (
     <AuthProvider>
       <AppHeader />
-      <main id="contenuto" className="container my-4">
+      <main id="contenuto" className="container pt-4 pb-5">
         {children}
       </main>
     </AuthProvider>

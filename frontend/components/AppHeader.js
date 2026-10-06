@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useAuth } from "@/components/AuthProvider";
+import Brand from "@/components/Brand";
 import Icon from "@/components/Icon";
 import { roleLabels } from "@/lib/format";
 
@@ -21,18 +22,10 @@ export default function AppHeader() {
 
   return (
     <header className="it-header-wrapper">
-      <div className="it-header-center-wrapper">
+      <div className="it-header-center-wrapper it-small-header">
         <div className="container">
           <div className="it-header-center-content-wrapper">
-            <div className="it-brand-wrapper">
-              <Link href="/dashboard">
-                <Icon name="it-pa" size="lg" color="white" className="me-2" />
-                <div className="it-brand-text">
-                  <div className="it-brand-title">Risma</div>
-                  <div className="it-brand-tagline d-none d-md-block">Gestionale cancelleria</div>
-                </div>
-              </Link>
-            </div>
+            <Brand href="/dashboard" />
             <div className="it-right-zone">
               <span className="text-white me-3 d-none d-md-inline">
                 {user.first_name} {user.last_name}
@@ -56,10 +49,10 @@ export default function AppHeader() {
                   <li className="nav-item" key={section.href}>
                     <Link
                       href={section.href}
-                      className={`nav-link ${active ? "active" : ""}`}
+                      className={`nav-link px-3 px-sm-4 ${active ? "active" : ""}`}
                       aria-current={active ? "page" : undefined}
                     >
-                      <Icon name={section.icon} className="me-2" />
+                      <Icon name={section.icon} size="sm" className="me-2 d-none d-sm-inline" />
                       {section.label}
                     </Link>
                   </li>

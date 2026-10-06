@@ -7,18 +7,19 @@ import Spinner from "@/components/Spinner";
 import { formatDateTime, formatEuro, movementLabels } from "@/lib/format";
 import { useApiData } from "@/lib/useApiData";
 
+// Le card di Bootstrap Italia hanno un ::after che aggiunge 48px di vuoto in
+// fondo: la classe no-after lo toglie. Icona ed etichetta stanno sopra il
+// valore, così anche con tre colonne affiancate il testo ha tutta la larghezza.
 function StatCard({ icon, label, value }) {
   return (
     <div className="col-12 col-md-4">
-      <div className="card card-bg h-100">
+      <div className="card card-bg no-after h-100">
         <div className="card-body">
-          <div className="d-flex align-items-center">
-            <Icon name={icon} size="lg" color="primary" className="me-3" />
-            <div>
-              <p className="mb-1 text-secondary">{label}</p>
-              <p className="h3 mb-0">{value}</p>
-            </div>
-          </div>
+          <p className="d-flex align-items-center text-secondary mb-2">
+            <Icon name={icon} color="primary" className="me-2 flex-shrink-0" />
+            {label}
+          </p>
+          <p className="h3 mb-0">{value}</p>
         </div>
       </div>
     </div>
@@ -47,10 +48,10 @@ export default function Dashboard() {
       </div>
 
       <div className="row g-4">
-        <section className="col-12 col-lg-5" aria-labelledby="chart-title">
-          <div className="card card-bg h-100">
+        <section className="col-12 col-xl-4" aria-labelledby="chart-title">
+          <div className="card card-bg no-after h-100">
             <div className="card-body">
-              <h2 className="h4 card-title" id="chart-title">
+              <h2 className="h4 card-title mb-3" id="chart-title">
                 Prodotti per categoria
               </h2>
               <ProductsByTypeChart data={data.products_by_type} />
@@ -58,17 +59,19 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="col-12 col-lg-7" aria-labelledby="movements-title">
-          <div className="card card-bg h-100">
+        {/* La tabella ha cinque colonne: affiancata al grafico solo da xl,
+            dove ha circa 690px; sotto xl le due card occupano tutta la riga. */}
+        <section className="col-12 col-xl-8" aria-labelledby="movements-title">
+          <div className="card card-bg no-after h-100">
             <div className="card-body">
-              <h2 className="h4 card-title" id="movements-title">
+              <h2 className="h4 card-title mb-3" id="movements-title">
                 Ultimi movimenti di magazzino
               </h2>
               {data.recent_movements.length === 0 ? (
-                <p>Nessun movimento registrato.</p>
+                <p className="mb-0">Nessun movimento registrato.</p>
               ) : (
                 <div className="table-responsive">
-                  <table className="table">
+                  <table className="table align-middle mb-0">
                     <thead>
                       <tr>
                         <th scope="col">Data</th>
@@ -83,7 +86,7 @@ export default function Dashboard() {
                     <tbody>
                       {data.recent_movements.map((m) => (
                         <tr key={m.id}>
-                          <td>{formatDateTime(m.created_at)}</td>
+                          <td className="text-nowrap">{formatDateTime(m.created_at)}</td>
                           <td>
                             {m.product_name}
                             {m.product_deleted && <span className="badge bg-secondary ms-2">eliminato</span>}

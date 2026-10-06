@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import Alert from "@/components/Alert";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -16,6 +16,7 @@ import MovementModal from "./MovementModal";
 import ProductFormModal from "./ProductFormModal";
 
 const PAGE_SIZE = 10;
+const DEFAULT_SORT = "name-asc";
 
 // Ordinamenti offerti: valore della select → parametri sort e order dell'API.
 const SORT_OPTIONS = [
@@ -28,8 +29,9 @@ const SORT_OPTIONS = [
 
 export default function Inventory() {
   const [search, setSearch] = useState("");
+  const searchRef = useRef(null);
   const [typeID, setTypeID] = useState("");
-  const [sortValue, setSortValue] = useState("name-asc");
+  const [sortValue, setSortValue] = useState(DEFAULT_SORT);
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search.trim());
 
@@ -49,6 +51,17 @@ export default function Inventory() {
     setSearchedFor(debouncedSearch);
     setPage(1);
   }
+
+  const filtersActive = search !== "" || typeID !== "" || sortValue !== DEFAULT_SORT;
+
+  // Il pulsante sparisce appena i filtri sono azzerati: il focus passa al campo.
+  const resetFilters = () => {
+    setSearch("");
+    setTypeID("");
+    setSortValue(DEFAULT_SORT);
+    setPage(1);
+    searchRef.current?.focus();
+  };
 
   const closeDialog = () => setDialog(null);
 
@@ -80,13 +93,14 @@ export default function Inventory() {
       <Alert type={notice.type}>{notice.text}</Alert>
 
       <div className="row">
-        <div className="col-md-5">
-          <div className="form-group">
+        <div className="col-12 col-md-5">
+          <div className="form-group mb-4">
             <label htmlFor="product-search" className="active">
               Cerca per nome
             </label>
             <input
               id="product-search"
+              ref={searchRef}
               type="search"
               className="form-control"
               value={search}
@@ -95,7 +109,7 @@ export default function Inventory() {
             />
           </div>
         </div>
-        <div className="col-md-3">
+        <div className="col-12 col-sm-6 col-md-3">
           <div className="select-wrapper mb-4">
             <label htmlFor="product-type">Tipo</label>
             <select
@@ -115,7 +129,7 @@ export default function Inventory() {
             </select>
           </div>
         </div>
-        <div className="col-md-4">
+        <div className="col-12 col-sm-6 col-md-4">
           <div className="select-wrapper mb-4">
             <label htmlFor="product-sort">Ordina per</label>
             <select
@@ -142,12 +156,19 @@ export default function Inventory() {
         loading && <Spinner />
       ) : (
         <>
-          <p className="small text-muted" aria-live="polite">
-            {data.total === 1 ? "1 prodotto trovato" : `${data.total} prodotti trovati`}. Si può eliminare solo un prodotto
-            con quantità zero.
-          </p>
+          <div className="d-flex flex-wrap align-items-center gap-3 mb-2">
+            <p className="small text-muted mb-0" aria-live="polite">
+              {data.total === 1 ? "1 prodotto trovato" : `${data.total} prodotti trovati`}
+            </p>
+            {filtersActive && (
+              <button type="button" className="btn btn-link btn-xs p-0" onClick={resetFilters}>
+                Azzera filtri
+              </button>
+            )}
+          </div>
+          <p className="small text-muted">Si può eliminare solo un prodotto con quantità zero.</p>
           <div className="table-responsive">
-            <table className="table table-hover" aria-busy={loading}>
+            <table className="table table-hover align-middle" aria-busy={loading}>
               <caption className="visually-hidden">Prodotti in inventario</caption>
               <thead>
                 <tr>
@@ -175,17 +196,17 @@ export default function Inventory() {
                       {p.description && <div className="small text-muted">{p.description}</div>}
                     </td>
                     <td>{p.product_type_name}</td>
-                    <td className="text-end">{formatEuro(p.price)}</td>
-                    <td className="text-end">
+                    <td className="text-end text-nowrap">{formatEuro(p.price)}</td>
+                    <td className="text-end text-nowrap">
                       {p.stock_quantity}
                       {p.below_threshold && <span className="badge bg-danger ms-2">sotto soglia</span>}
                     </td>
                     <td className="text-end">{p.min_stock_threshold}</td>
                     <td className="table-actions">
-                      <button type="button" className="btn btn-outline-primary btn-xs me-2" onClick={() => setDialog({ type: "movement", product: p })}>
+                      <button type="button" className="btn btn-outline-primary btn-xs" onClick={() => setDialog({ type: "movement", product: p })}>
                         Carico/Scarico<span className="visually-hidden"> {p.name}</span>
                       </button>
-                      <button type="button" className="btn btn-outline-primary btn-xs me-2" onClick={() => setDialog({ type: "edit", product: p })}>
+                      <button type="button" className="btn btn-outline-primary btn-xs" onClick={() => setDialog({ type: "edit", product: p })}>
                         Modifica<span className="visually-hidden"> {p.name}</span>
                       </button>
                       {/* Si elimina solo un prodotto senza giacenza: il backend lo
@@ -200,7 +221,7 @@ export default function Inventory() {
                 ))}
                 {data.products.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center">
+                    <td colSpan={6} className="text-center text-muted py-4">
                       Nessun prodotto trovato.
                     </td>
                   </tr>
