@@ -164,7 +164,7 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 - **Porte dei servizi Docker esposte solo su `127.0.0.1`**.
 - **`sslmode=disable` solo in sviluppo locale**.
 - **Server HTTP con timeout espliciti** (`http.Server` invece di `http.ListenAndServe`, che non ne ha): header 5 s (difesa da Slowloris), lettura della richiesta 10 s, scrittura della risposta 15 s (margine per le query), connessioni inattive 60 s.
-- **Arresto ordinato (graceful shutdown)** su `SIGINT` / `SIGTERM`: il server smette di accettare richieste, attende quelle in corso fino a 15 s (pari al `WriteTimeout`, così nessuna richiesta legittima viene interrotta) e chiude il pool del database. Il periodo di tolleranza di Docker (`stop_grace_period`) dovrà essere superiore, es. 20 s, perché il default di 10 s ucciderebbe il processo prima.
+- **Arresto ordinato (graceful shutdown)** su `SIGINT` / `SIGTERM`: il server smette di accettare richieste, attende quelle in corso fino a 15 s (pari al `WriteTimeout`, così nessuna richiesta legittima viene interrotta) e chiude il pool del database. Il periodo di tolleranza di Docker (`stop_grace_period`) è quindi di 20 s: il default di 10 s ucciderebbe il processo prima.
 
 ## Requisiti interpretati
 
@@ -178,9 +178,9 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 - **Nessun messaggio di errore in `email_logs`**: la causa del fallimento resta nei log del backend.
 - **Tentativi di accesso con username inesistenti non registrati**. Evoluzione: una migrazione che rende `user_id` facoltativo e aggiunge lo username tentato, per riconoscere chi prova a indovinare gli account.
 - **Immutabilità dei movimenti garantita dal backend, non dal database**. Evoluzione: trigger che blocca `UPDATE` e `DELETE` su `stock_movements`.
-
 - **`os.Exit(1)` nella goroutine del server** se `ListenAndServe` fallisce (es. porta occupata): salta i `defer`, accettabile perché accade all'avvio. Evoluzione: canale di errori e `select` in `main`.
 - **Un Operatore può modificare un Admin**: la scheda non lo vieta. Cambiando l'email di un Admin e chiedendo il recupero password, un Operatore potrebbe prenderne l'account. Evoluzione: impedire a un Operatore di modificare utenti Admin.
+- **Un Operatore può riattivare un utente disattivato dall'Admin**: la disattivazione è riservata all'Admin, la riattivazione no, quindi un Operatore può annullare una decisione dell'Admin. Evoluzione: riservare anche la riattivazione all'Admin.
 - **Nessuna protezione dell'ultimo Admin**: un Admin può declassare sé stesso anche se è l'ultimo rimasto. Evoluzione: rifiutare il cambio di ruolo se non resterebbe alcun Admin attivo. La disattivazione invece lascia sempre un Admin attivo, perché la esegue solo un Admin e mai su sé stesso (salvo un Admin declassato da meno di 15 minuti, il cui access token riporta ancora il vecchio ruolo).
 - **Password del seed visibile mentre si digita**: viene letta come una riga di stdin. Evoluzione: `golang.org/x/term` per disattivare l'eco.
 - **Chiunque conosca uno username può bloccarne l'account** con 5 tentativi errati: è una conseguenza del blocco richiesto dalla scheda. Evoluzione: limite di tentativi per IP prima del blocco per utente.
@@ -205,12 +205,3 @@ Registro delle decisioni prese durante lo sviluppo di Risma, con il motivo di ci
 - **Nessuna pulizia dei refresh token scaduti**: la tabella cresce. Evoluzione: routine periodica di cancellazione.
 - **Nessun riconoscimento del riuso di un refresh token già ruotato**. Evoluzione: riferimento al token successivo e revoca dell'intera famiglia.
 - **Query con pgx a mano**: più codice ripetitivo e controllo dei tipi solo a runtime. Evoluzione: sqlc per generare il codice dall'SQL.
-
-## In sospeso
-
-- [x] Tabella `refresh_tokens` (non prevista dalla scheda, necessaria per revocare i token): token salvato come hash, scadenza, revoca.
-- [x] Server HTTP con timeout espliciti (difesa da client lenti, es. Slowloris).
-- [x] Arresto ordinato del server (graceful shutdown).
-- [x] Quando il backend sarà containerizzato: `stop_grace_period` di almeno 20 s nel compose.
-- [x] Header di sicurezza (HSTS, CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy: no-referrer`) in nginx.
-- [ ] Riattivazione degli utenti: è ancora permessa a entrambi i ruoli, quindi un Operatore può annullare una disattivazione decisa dall'Admin. Da decidere se riservarla all'Admin come la disattivazione.

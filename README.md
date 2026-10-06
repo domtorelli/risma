@@ -34,7 +34,7 @@ Le scelte progettuali, con le motivazioni e i limiti noti, sono in
 Requisiti: Docker con Docker Compose v2.
 
 ```bash
-git clone <url-del-repository> risma && cd risma
+git clone https://github.com/domtorelli/risma.git && cd risma
 
 # 1. Configurazione: copia l'esempio e completa i due segreti
 cp .env.example .env
@@ -342,6 +342,7 @@ risma/
 │   └── Dockerfile
 ├── nginx/                # reverse proxy HTTPS e script del certificato
 ├── docs/decisions.md     # decisioni progettuali, motivazioni e limiti noti
+├── CLAUDE.md             # convenzioni del codice, usate anche come istruzioni per l'assistente AI
 ├── docker-compose.yml
 └── .env.example
 ```
@@ -359,5 +360,6 @@ I principali, descritti con le possibili evoluzioni in
   backend;
 - Content-Security-Policy con `'unsafe-inline'`, richiesto dagli script di
   Next.js e dagli stili di Chart.js;
-- un Operatore può modificare i dati di un Admin (la scheda non lo vieta);
+- un Operatore può modificare i dati di un Admin (la scheda non lo vieta) e
+  riattivare un utente disattivato dall'Admin;
 - certificato HTTPS autofirmato, adatto solo all'uso locale.
