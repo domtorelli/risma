@@ -174,7 +174,9 @@ export default function Users() {
                           <button type="button" className="btn btn-outline-primary btn-xs" onClick={() => setDialog({ type: "edit", user: u })}>
                             Modifica<span className="visually-hidden"> {u.username}</span>
                           </button>
-                          {u.id !== me.id && (
+                          {/* Disattiva solo l'Admin, e mai sé stesso: il backend lo
+                              verifica comunque, il pulsante evita un tentativo inutile. */}
+                          {isAdmin && u.id !== me.id && (
                             <button type="button" className="btn btn-outline-danger btn-xs" onClick={() => setDialog({ type: "deactivate", user: u })}>
                               Disattiva<span className="visually-hidden"> {u.username}</span>
                             </button>

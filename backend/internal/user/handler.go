@@ -96,7 +96,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, requireAuth, requireAdmin f
 	mux.Handle("POST /api/users", requireAuth(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/users/{id}", requireAuth(http.HandlerFunc(h.get)))
 	mux.Handle("PUT /api/users/{id}", requireAuth(http.HandlerFunc(h.update)))
-	mux.Handle("DELETE /api/users/{id}", requireAuth(http.HandlerFunc(h.deactivate)))
+	mux.Handle("DELETE /api/users/{id}", requireAdmin(http.HandlerFunc(h.deactivate)))
 	mux.Handle("POST /api/users/{id}/reactivate", requireAuth(http.HandlerFunc(h.reactivate)))
 	mux.Handle("PUT /api/users/{id}/role", requireAdmin(http.HandlerFunc(h.changeRole)))
 }
@@ -219,7 +219,7 @@ func (h *Handler) deactivate(w http.ResponseWriter, r *http.Request) {
 
 	actor, _ := identity.FromContext(r.Context())
 
-	if err := h.svc.Deactivate(r.Context(), actor.UserID, id); err != nil {
+	if err := h.svc.Deactivate(r.Context(), actor.UserID, actor.Role, id); err != nil {
 		h.writeError(w, r, err)
 		return
 	}
@@ -308,6 +308,8 @@ func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, err error) 
 		httpx.FieldErrors(w, map[string]string{"role_id": "ruolo inesistente"})
 	case errors.Is(err, ErrForbidden):
 		httpx.Error(w, http.StatusForbidden, "solo un amministratore può assegnare o modificare i ruoli")
+	case errors.Is(err, ErrDeactivationForbidden):
+		httpx.Error(w, http.StatusForbidden, "solo un amministratore può disattivare gli utenti")
 	case errors.Is(err, ErrSelfDeactivation):
 		httpx.Error(w, http.StatusForbidden, "non puoi disattivare il tuo account")
 	default:

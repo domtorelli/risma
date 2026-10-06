@@ -312,19 +312,33 @@ func TestChangeRole(t *testing.T) {
 }
 
 func TestDeactivate(t *testing.T) {
-	svc, store, _ := newTestService()
-	ctx := context.Background()
-
-	if err := svc.Deactivate(ctx, "me", "me"); !errors.Is(err, ErrSelfDeactivation) {
-		t.Fatalf("self: err = %v, want ErrSelfDeactivation", err)
+	tests := []struct {
+		name      string
+		actorRole string
+		targetID  string
+		wantErr   error
+		wantCalls int
+	}{
+		{"admin", role.Admin, "someone-else", nil, 1},
+		{"admin on self", role.Admin, "me", ErrSelfDeactivation, 0},
+		{"operator", role.Operator, "someone-else", ErrDeactivationForbidden, 0},
+		{"operator on self", role.Operator, "me", ErrDeactivationForbidden, 0},
+		{"unknown role", "", "someone-else", ErrDeactivationForbidden, 0},
 	}
 
-	if store.softDeleteCalls != 0 {
-		t.Fatal("self deactivation reached the store")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, store, _ := newTestService()
 
-	if err := svc.Deactivate(ctx, "me", "someone-else"); err != nil {
-		t.Fatalf("other user: %v", err)
+			err := svc.Deactivate(context.Background(), "me", tt.actorRole, tt.targetID)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+
+			if store.softDeleteCalls != tt.wantCalls {
+				t.Errorf("SoftDelete calls = %d, want %d", store.softDeleteCalls, tt.wantCalls)
+			}
+		})
 	}
 }
 

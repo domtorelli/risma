@@ -119,8 +119,9 @@ database necessario), più i middleware e gli helper HTTP.
 cd backend && make check
 ```
 
-Coprono, tra l'altro: regole AGID sulle password, assegnazione dei ruoli
-riservata all'Admin, blocco dell'account al quinto tentativo, rotazione e
+Coprono, tra l'altro: regole AGID sulle password, assegnazione dei ruoli e
+disattivazione degli utenti riservate all'Admin, blocco dell'account al
+quinto tentativo, rotazione e
 revoca dei refresh token, token JWT manomessi, scaduti o con `alg: none`,
 recupero password (token scaduto, già usato, link precedente invalidato),
 oscuramento del link nel log delle email, protezione CSRF, limite di
@@ -172,7 +173,7 @@ perché tutti i numeri vengano dalla stessa istantanea; grafico con Chart.js.
 |---|---|
 | Tabella con paginazione, ricerca per username o email | `GET /api/users?q=&page=&page_size=` |
 | Inserimento, modifica | `POST /api/users`, `PUT /api/users/{id}` |
-| Disattivazione (soft delete) | `DELETE /api/users/{id}` (imposta `deleted_at` e chiude le sessioni); riattivazione con `POST /api/users/{id}/reactivate` |
+| Disattivazione (soft delete) | `DELETE /api/users/{id}` riservato all'Admin (imposta `deleted_at` e chiude le sessioni); riattivazione con `POST /api/users/{id}/reactivate` |
 | Assegnazione e modifica del ruolo; solo l'Admin modifica i ruoli | `PUT /api/users/{id}/role` riservato all'Admin; alla creazione solo l'Admin sceglie il ruolo |
 | Email di benvenuto alla creazione | l'email contiene il link per scegliere la password: nessuno conosce la password di un altro utente |
 
@@ -309,7 +310,7 @@ modificano dati sulle rotte autenticate richiedono l'header `X-CSRF-Token`.
 | `POST /api/users` | autenticato | nuovo utente (il ruolo lo sceglie solo l'Admin) |
 | `GET /api/users/{id}` | autenticato | dettaglio utente |
 | `PUT /api/users/{id}` | autenticato | modifica dei dati |
-| `DELETE /api/users/{id}` | autenticato | disattivazione |
+| `DELETE /api/users/{id}` | **Admin** | disattivazione |
 | `POST /api/users/{id}/reactivate` | autenticato | riattivazione |
 | `PUT /api/users/{id}/role` | **Admin** | cambio di ruolo |
 | `GET /api/product-types` | autenticato | tipi di prodotto |
@@ -358,5 +359,5 @@ I principali, descritti con le possibili evoluzioni in
   backend;
 - Content-Security-Policy con `'unsafe-inline'`, richiesto dagli script di
   Next.js e dagli stili di Chart.js;
-- un Operatore può modificare o disattivare un Admin (la scheda non lo vieta);
+- un Operatore può modificare i dati di un Admin (la scheda non lo vieta);
 - certificato HTTPS autofirmato, adatto solo all'uso locale.

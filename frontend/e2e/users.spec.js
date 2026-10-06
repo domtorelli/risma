@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { login, passwordLink, unique } from "./helpers";
+import { admin, login, passwordLink, unique } from "./helpers";
+
+// adminRow trova la riga dell'Admin dei test confrontando esattamente la
+// cella dello username: altri utenti potrebbero contenerlo (es. admin2).
+function adminRow(page) {
+  return page.getByRole("row").filter({ has: page.getByRole("cell", { name: admin.username, exact: true }) });
+}
 
 test("utente: invito, scelta della password e permessi dell'Operatore", async ({ page, browser }) => {
   const username = `e2e_${unique()}`;
@@ -47,12 +53,22 @@ test("utente: invito, scelta della password e permessi dell'Operatore", async ({
   await expect(operatorPage.getByRole("dialog").getByLabel("Ruolo")).toHaveCount(0);
   await operatorPage.keyboard.press("Escape");
 
-  // Nessuno può disattivare sé stesso.
+  // Solo l'Admin disattiva gli utenti: l'Operatore non vede il pulsante,
+  // né sul proprio account né su quello degli altri.
   await operatorPage.getByLabel("Cerca per username o email").fill(username);
   const ownRow = operatorPage.getByRole("row", { name: new RegExp(username) });
   await expect(ownRow.getByRole("button", { name: /Modifica/ })).toBeVisible();
   await expect(ownRow.getByRole("button", { name: /Disattiva/ })).toHaveCount(0);
+
+  await operatorPage.getByLabel("Cerca per username o email").fill(admin.username);
+  await expect(adminRow(operatorPage).getByRole("button", { name: /Modifica/ })).toBeVisible();
+  await expect(adminRow(operatorPage).getByRole("button", { name: /Disattiva/ })).toHaveCount(0);
   await operator.close();
+
+  // Nessuno può disattivare sé stesso, neanche l'Admin.
+  await page.getByLabel("Cerca per username o email").fill(admin.username);
+  await expect(adminRow(page).getByRole("button", { name: /Modifica/ })).toBeVisible();
+  await expect(adminRow(page).getByRole("button", { name: /Disattiva/ })).toHaveCount(0);
 
   // L'Admin disattiva e riattiva l'utente.
   await page.getByLabel("Cerca per username o email").fill(username);

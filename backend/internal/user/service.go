@@ -23,9 +23,10 @@ const (
 )
 
 var (
-	ErrWeakPassword     = errors.New("password must be 8 to 72 bytes long and contain an uppercase letter, a digit and a special character")
-	ErrForbidden        = errors.New("only an admin can assign or change roles")
-	ErrSelfDeactivation = errors.New("users cannot deactivate their own account")
+	ErrWeakPassword          = errors.New("password must be 8 to 72 bytes long and contain an uppercase letter, a digit and a special character")
+	ErrForbidden             = errors.New("only an admin can assign or change roles")
+	ErrDeactivationForbidden = errors.New("only an admin can deactivate users")
+	ErrSelfDeactivation      = errors.New("users cannot deactivate their own account")
 )
 
 type userStore interface {
@@ -263,9 +264,15 @@ func (s *Service) ChangeRole(ctx context.Context, actorRole, id, roleID string) 
 }
 
 // Deactivate disattiva un utente (soft delete) e ne chiude le sessioni.
-// actorID è l'utente che esegue l'operazione: nessuno può disattivare sé
-// stesso, per non chiudersi fuori per errore.
-func (s *Service) Deactivate(ctx context.Context, actorID, id string) error {
+// actorID e actorRole sono l'utente che esegue l'operazione e il suo ruolo:
+// disattivare è riservato all'Admin (come in ChangeRole, il controllo vale
+// anche se la rotta è già protetta) e nessuno può disattivare sé stesso,
+// per non chiudersi fuori per errore.
+func (s *Service) Deactivate(ctx context.Context, actorID, actorRole, id string) error {
+	if actorRole != role.Admin {
+		return ErrDeactivationForbidden
+	}
+
 	if actorID == id {
 		return ErrSelfDeactivation
 	}
