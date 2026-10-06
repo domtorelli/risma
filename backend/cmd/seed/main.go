@@ -17,11 +17,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/matteotorelli/risma/backend/internal/config"
-	"github.com/matteotorelli/risma/backend/internal/database"
-	"github.com/matteotorelli/risma/backend/internal/role"
-	"github.com/matteotorelli/risma/backend/internal/user"
-	"github.com/matteotorelli/risma/backend/internal/validation"
+	"github.com/domtorelli/risma/backend/internal/config"
+	"github.com/domtorelli/risma/backend/internal/database"
+	"github.com/domtorelli/risma/backend/internal/role"
+	"github.com/domtorelli/risma/backend/internal/user"
+	"github.com/domtorelli/risma/backend/internal/validation"
 )
 
 func main() {

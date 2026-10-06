@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/matteotorelli/risma/backend/internal/httpx"
-	"github.com/matteotorelli/risma/backend/internal/identity"
+	"github.com/domtorelli/risma/backend/internal/httpx"
+	"github.com/domtorelli/risma/backend/internal/identity"
 )
 
 type tokenVerifier interface {

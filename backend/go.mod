@@ -1,4 +1,4 @@
-module github.com/matteotorelli/risma/backend
+module github.com/domtorelli/risma/backend
 
 go 1.27.1
 

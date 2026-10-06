@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/matteotorelli/risma/backend/internal/mail"
-	"github.com/matteotorelli/risma/backend/internal/role"
-	"github.com/matteotorelli/risma/backend/internal/user"
-	"github.com/matteotorelli/risma/backend/internal/validation"
+	"github.com/domtorelli/risma/backend/internal/mail"
+	"github.com/domtorelli/risma/backend/internal/role"
+	"github.com/domtorelli/risma/backend/internal/user"
+	"github.com/domtorelli/risma/backend/internal/validation"
 )
 
 // fakeStore tiene in memoria un solo prodotto e registra le chiamate.

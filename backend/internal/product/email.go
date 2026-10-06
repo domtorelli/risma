@@ -3,8 +3,8 @@ package product
 import (
 	"fmt"
 
-	"github.com/matteotorelli/risma/backend/internal/mail"
-	"github.com/matteotorelli/risma/backend/internal/user"
+	"github.com/domtorelli/risma/backend/internal/mail"
+	"github.com/domtorelli/risma/backend/internal/user"
 )
 
 // lowStockEmail compone l'avviso di scorta sotto la soglia minima per un

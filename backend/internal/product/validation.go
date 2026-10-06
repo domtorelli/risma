@@ -6,7 +6,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/matteotorelli/risma/backend/internal/validation"
+	"github.com/domtorelli/risma/backend/internal/validation"
 )
 
 const (

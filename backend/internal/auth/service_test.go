@@ -10,8 +10,8 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/matteotorelli/risma/backend/internal/mail"
-	"github.com/matteotorelli/risma/backend/internal/user"
+	"github.com/domtorelli/risma/backend/internal/mail"
+	"github.com/domtorelli/risma/backend/internal/user"
 )
 
 const testPassword = "Password1!"

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/matteotorelli/risma/backend/internal/httpx"
-	"github.com/matteotorelli/risma/backend/internal/identity"
-	"github.com/matteotorelli/risma/backend/internal/user"
+	"github.com/domtorelli/risma/backend/internal/httpx"
+	"github.com/domtorelli/risma/backend/internal/identity"
+	"github.com/domtorelli/risma/backend/internal/user"
 )
 
 // Nomi e percorsi dei cookie di sessione. Il refresh token viene inviato

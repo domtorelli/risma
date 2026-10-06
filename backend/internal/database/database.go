@@ -6,7 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/matteotorelli/risma/backend/internal/config"
+	"github.com/domtorelli/risma/backend/internal/config"
 )
 
 func Connect(ctx context.Context, cfg config.Config) (*pgxpool.Pool, error) {

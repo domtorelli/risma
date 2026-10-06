@@ -11,15 +11,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/matteotorelli/risma/backend/internal/auth"
-	"github.com/matteotorelli/risma/backend/internal/config"
-	"github.com/matteotorelli/risma/backend/internal/dashboard"
-	"github.com/matteotorelli/risma/backend/internal/database"
-	"github.com/matteotorelli/risma/backend/internal/httpx"
-	"github.com/matteotorelli/risma/backend/internal/mail"
-	"github.com/matteotorelli/risma/backend/internal/product"
-	"github.com/matteotorelli/risma/backend/internal/role"
-	"github.com/matteotorelli/risma/backend/internal/user"
+	"github.com/domtorelli/risma/backend/internal/auth"
+	"github.com/domtorelli/risma/backend/internal/config"
+	"github.com/domtorelli/risma/backend/internal/dashboard"
+	"github.com/domtorelli/risma/backend/internal/database"
+	"github.com/domtorelli/risma/backend/internal/httpx"
+	"github.com/domtorelli/risma/backend/internal/mail"
+	"github.com/domtorelli/risma/backend/internal/product"
+	"github.com/domtorelli/risma/backend/internal/role"
+	"github.com/domtorelli/risma/backend/internal/user"
 )
 
 func main() {

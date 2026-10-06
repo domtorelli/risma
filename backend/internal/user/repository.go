@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/matteotorelli/risma/backend/internal/database"
+	"github.com/domtorelli/risma/backend/internal/database"
 )
 
 // Codici SQLSTATE di PostgreSQL.

@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/matteotorelli/risma/backend/internal/httpx"
+	"github.com/domtorelli/risma/backend/internal/httpx"
 )
 
 // Response è la rappresentazione JSON di un ruolo.

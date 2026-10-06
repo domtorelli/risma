@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/matteotorelli/risma/backend/internal/httpx"
-	"github.com/matteotorelli/risma/backend/internal/identity"
-	"github.com/matteotorelli/risma/backend/internal/validation"
+	"github.com/domtorelli/risma/backend/internal/httpx"
+	"github.com/domtorelli/risma/backend/internal/identity"
+	"github.com/domtorelli/risma/backend/internal/validation"
 )
 
 // maxSearchRunes limita il testo di ricerca nell'elenco utenti.

@@ -3,8 +3,8 @@ package auth
 import (
 	"fmt"
 
-	"github.com/matteotorelli/risma/backend/internal/mail"
-	"github.com/matteotorelli/risma/backend/internal/user"
+	"github.com/domtorelli/risma/backend/internal/mail"
+	"github.com/domtorelli/risma/backend/internal/user"
 )
 
 // passwordResetEmail compone l'email di recupero password. Il link compare

@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/matteotorelli/risma/backend/internal/role"
+	"github.com/domtorelli/risma/backend/internal/role"
 )
 
 // maxPasswordBytes è il limite oltre il quale bcrypt rifiuta la password.
